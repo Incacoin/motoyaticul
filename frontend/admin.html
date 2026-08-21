@@ -140,20 +140,6 @@
     <input id="driverVehicle" placeholder="Ej. Mototaxi rojo, placa ABC123" />
   </div>
   <div class="field">
-    <label>Tipo</label>
-    <select id="driverTipo" class="tipo-select">
-      <option value="informal">Informal (sin placa)</option>
-      <option value="formal">Formal (con placa/concesión)</option>
-    </select>
-  </div>
-  <div class="field">
-    <label>Servicio</label>
-    <select id="driverVehicleType" class="tipo-select">
-      <option value="moto">🛵 Moto (viajes cortos)</option>
-      <option value="taxi">🚕 Taxi (viajes largos)</option>
-    </select>
-  </div>
-  <div class="field">
     <label>Foto (opcional)</label>
     <input type="file" id="driverPhotoInput" accept="image/*" capture="environment" onchange="handleDriverPhoto(event)" />
   </div>
@@ -177,7 +163,6 @@
   <h1>Choferes registrados</h1>
   <div class="tipo-tabs" id="tipoTabs">
     <button class="active" onclick="setTipoFilter('todos')">Todos</button>
-    <button onclick="setTipoFilter('informal')">Informales</button>
     <button onclick="setTipoFilter('formal')">Formales</button>
   </div>
   <div class="table-wrap">
@@ -320,7 +305,6 @@ function useApplication(id) {
   if (!app) return;
   document.getElementById("driverName").value = app.name;
   document.getElementById("driverPhone").value = app.phone;
-  document.getElementById("driverVehicleType").value = app.vehicle_type === "taxi" ? "taxi" : "moto";
   pendingDriverPhoto = app.photo || null;
   renderPendingPhotoPreview();
   document.getElementById("driverName").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -400,8 +384,8 @@ async function registerDriver() {
   const name = document.getElementById("driverName").value.trim();
   const phone = document.getElementById("driverPhone").value.trim();
   const vehicle = document.getElementById("driverVehicle").value.trim();
-  const tipo = document.getElementById("driverTipo").value;
-  const vehicleType = document.getElementById("driverVehicleType").value;
+  const tipo = "formal";
+  const vehicleType = "moto";
   document.getElementById("err2").textContent = "";
 
   if (!name || !phone) {
@@ -432,8 +416,6 @@ async function registerDriver() {
   document.getElementById("driverName").value = "";
   document.getElementById("driverPhone").value = "";
   document.getElementById("driverVehicle").value = "";
-  document.getElementById("driverTipo").value = "informal";
-  document.getElementById("driverVehicleType").value = "moto";
   document.getElementById("driverAcceptedLegal").checked = false;
   document.getElementById("driverPhotoInput").value = "";
   pendingDriverPhoto = null;
@@ -466,8 +448,8 @@ async function saveEdit(id) {
   const name = document.getElementById(`edit-name-${id}`).value.trim();
   const phone = document.getElementById(`edit-phone-${id}`).value.trim();
   const vehicle = document.getElementById(`edit-vehicle-${id}`).value.trim();
-  const tipo = document.getElementById(`edit-tipo-${id}`).value;
-  const vehicleType = document.getElementById(`edit-vehicletype-${id}`).value;
+  const tipo = "formal";
+  const vehicleType = "moto";
   if (!name || !phone) {
     showToast("Escribe nombre y teléfono");
     return;
@@ -504,7 +486,7 @@ let tipoFilter = "todos";
 function setTipoFilter(tipo) {
   tipoFilter = tipo;
   document.querySelectorAll("#tipoTabs button").forEach((b, i) => {
-    b.classList.toggle("active", ["todos", "informal", "formal"][i] === tipo);
+    b.classList.toggle("active", ["todos", "formal"][i] === tipo);
   });
   renderDriverRows();
 }
@@ -515,27 +497,9 @@ function tipoBadge(tipo) {
   return `<span class="badge-tipo ${t}">${label}</span>`;
 }
 
-function tipoSelect(id, tipo) {
-  const t = tipo === "formal" ? "formal" : "informal";
-  return `
-    <select id="edit-tipo-${id}" class="tipo-select">
-      <option value="informal" ${t === "informal" ? "selected" : ""}>Informal</option>
-      <option value="formal" ${t === "formal" ? "selected" : ""}>Formal</option>
-    </select>`;
-}
-
 function vehicleTypeBadge(vehicleType) {
   const t = vehicleType === "taxi" ? "taxi" : "moto";
   return t === "taxi" ? `<span class="badge-tipo formal">🚕 Taxi</span>` : `<span class="badge-tipo informal">🛵 Moto</span>`;
-}
-
-function vehicleTypeSelect(id, vehicleType) {
-  const t = vehicleType === "taxi" ? "taxi" : "moto";
-  return `
-    <select id="edit-vehicletype-${id}" class="tipo-select">
-      <option value="moto" ${t === "moto" ? "selected" : ""}>🛵 Moto</option>
-      <option value="taxi" ${t === "taxi" ? "selected" : ""}>🚕 Taxi</option>
-    </select>`;
 }
 
 function renderDriverRows() {
@@ -555,8 +519,8 @@ function renderDriverRows() {
             <input id="edit-phone-${d.id}" value="${d.phone}" inputmode="numeric" maxlength="10" oninput="this.value = this.value.replace(/\\D/g, '')" />
           </div>
         </td>
-        <td>${tipoSelect(d.id, d.tipo)}</td>
-        <td>${vehicleTypeSelect(d.id, d.vehicle_type)}</td>
+        <td>${tipoBadge(d.tipo)}</td>
+        <td>${vehicleTypeBadge(d.vehicle_type)}</td>
         <td><span class="dot ${d.status}"></span>${d.status}</td>
         <td>${d.created_at ? d.created_at.slice(0, 10) : ""}</td>
         <td><input id="edit-vehicle-${d.id}" value="${d.vehicle || ""}" placeholder="Vehículo" /></td>
