@@ -175,7 +175,7 @@ function stopRouteTracking() {
   updateEtaDisplay(null);
 }
 
-function renderDriverCard(driver) {
+function renderDriverCard(driver, showPhone = true) {
   const card = document.getElementById("driverCard");
   card.style.display = "block";
   card.innerHTML = `
@@ -184,7 +184,7 @@ function renderDriverCard(driver) {
       <div>
         <div class="name">${driver.name}</div>
         <div class="meta">${driver.vehicle || (serviceType === "taxi" ? "Taxi" : "Mototaxi")}</div>
-        <div class="meta"><a href="tel:${driver.phone}">Tel: ${driver.phone}</a></div>
+        ${showPhone ? `<div class="meta"><a href="tel:${driver.phone}">Tel: ${driver.phone}</a></div>` : ""}
       </div>
     </div>`;
 }
@@ -279,13 +279,14 @@ async function init() {
   const boundsPoints = [[pickup.lat, pickup.lng]];
   if (dest) boundsPoints.push([dest.lat, dest.lng]);
 
+  const rideEnded = ["completado", "cancelado"].includes(ride.status);
   if (ride.driver) {
-    renderDriverCard(ride.driver);
-    if (ride.driver.lat != null) {
+    renderDriverCard(ride.driver, !rideEnded);
+    if (ride.driver.lat != null && !rideEnded) {
       driverPos = { lat: ride.driver.lat, lng: ride.driver.lng };
       driverMarker = L.marker([ride.driver.lat, ride.driver.lng], { icon: vehicleIcon() }).addTo(map);
       boundsPoints.push([ride.driver.lat, ride.driver.lng]);
-      if (!["completado", "cancelado"].includes(ride.status)) startRouteTracking();
+      startRouteTracking();
     }
   }
 
@@ -293,7 +294,7 @@ async function init() {
     map.fitBounds(L.latLngBounds(boundsPoints), { padding: [40, 40], maxZoom: 16 });
   }
 
-  if (!["completado", "cancelado"].includes(ride.status)) connectWs();
+  if (!rideEnded) connectWs();
 }
 
 init();
