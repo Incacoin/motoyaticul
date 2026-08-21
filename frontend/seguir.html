@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Viaje en vivo - MotoYaTicul</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%BA%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; }
+  .topbar { padding: 14px; background: var(--bg-panel); border-bottom: 1px solid var(--border); text-align: center; }
+  .topbar .brand { font-size: 19px; margin-bottom: 6px; }
+  .topbar .brand .brand-icon { font-size: 22px; }
+  #riderName { color: var(--text-dim); font-size: 13.5px; margin-bottom: 4px; }
+  #statusText { font-size: 18px; font-weight: 700; }
+  #etaText { color: var(--accent); font-size: 14px; font-weight: 600; margin-top: 2px; }
+  #connWarning { display: none; color: var(--danger); font-size: 13px; margin-top: 4px; }
+  #map { flex: 1; min-height: 0; }
+  #driverCard { position: absolute; left: 14px; right: 14px; bottom: 54px; padding: 14px; display: none; z-index: 1000; }
+  #driverCard .driverInfo { display: flex; align-items: center; gap: 12px; }
+  #driverCard .name { font-size: 16px; font-weight: 700; }
+  #driverCard .meta { color: var(--text-dim); font-size: 13.5px; margin-top: 2px; }
+  #driverCard .meta a { color: var(--text-dim); }
+  .driverPhoto { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--accent); cursor: pointer; }
+  .driverPhotoFallback { display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--bg-card); }
+  #photoLightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 2000; align-items: center; justify-content: center; padding: 24px; }
+  #photoLightbox.show { display: flex; }
+  #photoLightbox img { max-width: 90vw; max-height: 80vh; border-radius: var(--radius-lg); border: 3px solid var(--accent); }
+  #errorScreen { display: none; flex: 1; align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 24px; text-align: center; }
+  .credit { padding: 8px; background: var(--bg-panel); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</div>
+  <div id="riderName"></div>
+  <div id="statusText">Cargando viaje...</div>
+  <div id="etaText"></div>
+  <div id="connWarning"></div>
+</div>
+
+<div id="map"></div>
+<div id="driverCard" class="card fade-in"></div>
+
+<div id="errorScreen">
+  <div class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</div>
+  <p id="errorText" style="color:var(--text-dim);"></p>
+</div>
+
+<div class="credit">⚡ Tecnología de <strong>Lealtad Digital</strong></div>
+
+<div id="photoLightbox" onclick="closePhotoLightbox()">
+  <img id="photoLightboxImg" src="" />
+</div>
+
+<script>
+function openPhotoLightbox(src) {
+  document.getElementById("photoLightboxImg").src = src;
+  document.getElementById("photoLightbox").classList.add("show");
+}
+function closePhotoLightbox() {
+  document.getElementById("photoLightbox").classList.remove("show");
+}
+
+const rideId = new URLSearchParams(location.search).get("id");
+let map, driverMarker, driverPos = null;
+let routeLine = null, routeRefreshInterval = null;
+let pickup = null, dest = null, serviceType = "moto", currentStatus = null;
+let ws = null;
+
+function numberedIcon(num, color) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:${color};width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff;"><span style="transform:rotate(45deg);font-weight:800;font-size:13px;color:#14161c;">${num}</span></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+  });
+}
+
+function vehicleIcon() {
+  const emoji = serviceType === "taxi" ? "🚕" : "🛵";
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:#14161c;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #f6a623;font-size:17px;">${emoji}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+function showError(msg) {
+  document.querySelector(".topbar").style.display = "none";
+  document.getElementById("map").style.display = "none";
+  document.querySelector(".credit").style.display = "none";
+  document.getElementById("errorScreen").style.display = "flex";
+  document.getElementById("errorText").textContent = msg;
+}
+
+const STATUS_LABEL = {
+  buscando: "Buscando chofer cercano...",
+  aceptado: "¡Chofer en camino!",
+  llegue: "El chofer ya llegó, esperando al pasajero",
+  en_curso: "En camino al destino",
+  completado: "Viaje completado",
+  cancelado: "Viaje cancelado",
+};
+
+function applyStatus(status) {
+  currentStatus = status;
+  document.getElementById("statusText").textContent = STATUS_LABEL[status] || status;
+  if (["completado", "cancelado"].includes(status)) {
+    stopRouteTracking();
+    document.getElementById("connWarning").style.display = "none";
+  }
+}
+
+async function fetchRoute(from, to) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("routing failed");
+  const data = await res.json();
+  const coords = data.routes[0].geometry.coordinates;
+  return { points: coords.map(([lng, lat]) => [lat, lng]), duration: data.routes[0].duration };
+}
+
+function updateEtaDisplay(durationSeconds) {
+  document.getElementById("etaText").textContent =
+    durationSeconds != null ? `Llega en ~${Math.max(1, Math.round(durationSeconds / 60))} min` : "";
+}
+
+async function updateRouteLine() {
+  if (!driverPos || ["completado", "cancelado"].includes(currentStatus)) return;
+
+  let target = null, color = "#f6a623";
+  if (currentStatus === "aceptado") {
+    target = pickup;
+  } else if (currentStatus === "en_curso" && dest) {
+    target = dest;
+    color = "#3498db";
+  }
+
+  if (!target) {
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+    updateEtaDisplay(null);
+    return;
+  }
+
+  let points, duration = null;
+  try {
+    const route = await fetchRoute(driverPos, target);
+    points = route.points;
+    duration = route.duration;
+  } catch {
+    points = [[driverPos.lat, driverPos.lng], [target.lat, target.lng]];
+  }
+  if (["completado", "cancelado"].includes(currentStatus)) return;
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline(points, { color, weight: 4 }).addTo(map);
+  updateEtaDisplay(duration);
+}
+
+function startRouteTracking() {
+  clearInterval(routeRefreshInterval);
+  updateRouteLine();
+  routeRefreshInterval = setInterval(updateRouteLine, 15000);
+}
+
+function stopRouteTracking() {
+  clearInterval(routeRefreshInterval);
+  routeRefreshInterval = null;
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  updateEtaDisplay(null);
+}
+
+function renderDriverCard(driver) {
+  const card = document.getElementById("driverCard");
+  card.style.display = "block";
+  card.innerHTML = `
+    <div class="driverInfo">
+      ${driver.photo ? `<img class="driverPhoto" src="${driver.photo}" onclick="openPhotoLightbox('${driver.photo}')" />` : `<div class="driverPhoto driverPhotoFallback">${serviceType === "taxi" ? "🚕" : "🛵"}</div>`}
+      <div>
+        <div class="name">${driver.name}</div>
+        <div class="meta">${driver.vehicle || (serviceType === "taxi" ? "Taxi" : "Mototaxi")}</div>
+        <div class="meta"><a href="tel:${driver.phone}">Tel: ${driver.phone}</a></div>
+      </div>
+    </div>`;
+}
+
+function onDriverAssigned(driver) {
+  applyStatus("aceptado");
+  renderDriverCard(driver);
+  if (driver.lat != null) {
+    driverPos = { lat: driver.lat, lng: driver.lng };
+    if (driverMarker) map.removeLayer(driverMarker);
+    driverMarker = L.marker([driver.lat, driver.lng], { icon: vehicleIcon() }).addTo(map);
+    startRouteTracking();
+  }
+}
+
+function onDriverLocation({ lat, lng }) {
+  driverPos = { lat, lng };
+  if (!driverMarker) {
+    driverMarker = L.marker([lat, lng], { icon: vehicleIcon() }).addTo(map);
+  } else {
+    driverMarker.setLatLng([lat, lng]);
+  }
+  if (!routeRefreshInterval) startRouteTracking();
+}
+
+function onDriverDisconnected() {
+  const w = document.getElementById("connWarning");
+  w.textContent = "⚠️ El chofer perdió la conexión, esperando que regrese...";
+  w.style.display = "block";
+}
+
+function onDriverReconnected() {
+  document.getElementById("connWarning").style.display = "none";
+}
+
+function onDriverLost() {
+  const w = document.getElementById("connWarning");
+  w.textContent = "😕 Se perdió contacto con el chofer.";
+  w.style.display = "block";
+}
+
+function connectWs() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws?role=rider&rideId=${rideId}`);
+  let pingInterval;
+  ws.onopen = () => {
+    pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
+    }, 25000);
+  };
+  ws.onmessage = (ev) => {
+    const { type, payload } = JSON.parse(ev.data);
+    if (type === "ride_accepted") onDriverAssigned(payload);
+    if (type === "driver_location") onDriverLocation(payload);
+    if (type === "status_change") applyStatus(payload.status);
+    if (type === "driver_disconnected") onDriverDisconnected();
+    if (type === "driver_reconnected") onDriverReconnected();
+    if (type === "driver_lost") onDriverLost();
+  };
+  ws.onclose = () => {
+    clearInterval(pingInterval);
+    if (!["completado", "cancelado"].includes(currentStatus)) {
+      setTimeout(connectWs, 2000);
+    }
+  };
+}
+
+async function init() {
+  if (!rideId) { showError("Este enlace no tiene un viaje válido."); return; }
+
+  let ride;
+  try {
+    const res = await fetch(`/api/rides/${rideId}`);
+    if (!res.ok) { showError("No se encontró este viaje."); return; }
+    ride = await res.json();
+  } catch {
+    showError("No se pudo cargar el viaje. Revisa tu conexión."); return;
+  }
+
+  serviceType = ride.ride_type === "taxi" ? "taxi" : "moto";
+  pickup = { lat: ride.pickup_lat, lng: ride.pickup_lng };
+  dest = ride.dest_lat != null ? { lat: ride.dest_lat, lng: ride.dest_lng } : null;
+
+  document.getElementById("riderName").textContent = `Viaje de ${ride.rider_name}`;
+  applyStatus(ride.status);
+
+  map = L.map("map").setView([pickup.lat, pickup.lng], 15);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(map);
+  L.marker([pickup.lat, pickup.lng], { icon: numberedIcon(1, "#f6a623") }).addTo(map);
+  if (dest) L.marker([dest.lat, dest.lng], { icon: numberedIcon(2, "#3498db") }).addTo(map);
+
+  const boundsPoints = [[pickup.lat, pickup.lng]];
+  if (dest) boundsPoints.push([dest.lat, dest.lng]);
+
+  if (ride.driver) {
+    renderDriverCard(ride.driver);
+    if (ride.driver.lat != null) {
+      driverPos = { lat: ride.driver.lat, lng: ride.driver.lng };
+      driverMarker = L.marker([ride.driver.lat, ride.driver.lng], { icon: vehicleIcon() }).addTo(map);
+      boundsPoints.push([ride.driver.lat, ride.driver.lng]);
+      if (!["completado", "cancelado"].includes(ride.status)) startRouteTracking();
+    }
+  }
+
+  if (boundsPoints.length > 1) {
+    map.fitBounds(L.latLngBounds(boundsPoints), { padding: [40, 40], maxZoom: 16 });
+  }
+
+  if (!["completado", "cancelado"].includes(ride.status)) connectWs();
+}
+
+init();
+</script>
+</body>
+</html>
