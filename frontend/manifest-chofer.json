@@ -1,0 +1,18 @@
+{
+  "name": "MotoYaTicul Chofer",
+  "short_name": "Chofer Ticul",
+  "description": "Recibe y acepta viajes de MotoYaTicul",
+  "id": "/chofer.html",
+  "start_url": "/chofer.html",
+  "scope": "/chofer.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d12",
+  "theme_color": "#f6a623",
+  "lang": "es-MX",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
