@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>MotoYaTicul Chofer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%BA%3C/text%3E%3C/svg%3E" />
+<link rel="manifest" href="manifest-chofer.json" />
+<meta name="theme-color" content="#f6a623" />
+<link rel="apple-touch-icon" href="icons/icon-512.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Chofer Ticul" />
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  #login { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; padding: 24px; text-align: center; }
+  #login input { font-size: 26px; padding: 14px; text-align: center; letter-spacing: 6px; width: 200px; }
+  #loginError { color: var(--danger); min-height: 18px; font-size: 14px; }
+  .installBanner { position: absolute; top: 14px; left: 14px; right: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; text-align: left; font-size: 13.5px; }
+  .installBanner #installText { flex: 1; color: var(--text); line-height: 1.4; }
+  .installClose { background: none; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; padding: 4px; flex-shrink: 0; }
+  #app { display: none; flex-direction: column; height: 100vh; }
+  #topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
+  #topbar .name { font-weight: 700; }
+  #toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-dim); }
+  #map { flex: 1; min-height: 0; }
+  #panel { max-height: 42vh; overflow-y: auto; background: var(--bg-panel); padding: 10px; }
+  .ride-card { padding: 14px; margin-bottom: 8px; border-left: 4px solid transparent; }
+  .ride-card.pending { border-left-color: var(--accent); }
+  .ride-card.active { border-left-color: var(--success); }
+  .ride-card .label { font-weight: 700; font-size: 15px; }
+  .ride-card .meta { color: var(--text-dim); font-size: 13.5px; margin: 4px 0; }
+  .ride-card .meta.fare { color: var(--accent); font-weight: 700; font-size: 14px; }
+  .ride-card .btn { width: 100%; margin-top: 8px; }
+  .empty { text-align: center; color: var(--text-faint); padding: 26px 12px; font-size: 14px; }
+  #switch { position: relative; width: 52px; height: 30px; background: #2a2e38; border-radius: 20px; cursor: pointer; transition: background 0.2s ease; }
+  #switch .knob { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #cfd3db; transition: left 0.18s ease, background 0.18s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+  #switch.on { background: var(--success); }
+  #switch.on .knob { left: 25px; background: #fff; }
+  .footer-credit { padding: 10px 0 4px; }
+  @keyframes pulseReady { 0%, 100% { box-shadow: 0 0 0 0 rgba(246,166,35,.55); } 50% { box-shadow: 0 0 0 8px rgba(246,166,35,0); } }
+  .btn.ready { animation: pulseReady 1.4s ease-in-out infinite; }
+  .btn-danger { background: var(--bg-card); color: var(--danger); border: 1px solid rgba(229, 72, 77, 0.35); font-size: 14px; padding: 11px 22px; border-radius: var(--radius-sm); cursor: pointer; width: 100%; margin-top: 8px; }
+  .btn-danger:hover { background: var(--bg-card-hover); }
+  #chatBox { padding: 12px; margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+  #chatMessages { max-height: 110px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .chat-msg { padding: 7px 11px; border-radius: var(--radius-sm); max-width: 82%; font-size: 13.5px; line-height: 1.35; }
+  .chat-msg.me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); }
+  .chat-msg.them { align-self: flex-start; background: var(--bg-card-hover); color: var(--text); }
+  .chat-row { display: flex; gap: 6px; }
+  .chat-row input { flex: 1; padding: 9px 10px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div id="installBanner" class="card installBanner" style="display:none;">
+    <div id="installText"></div>
+    <button class="btn-sm" id="installBtn" onclick="installApp()" style="display:none;">Instalar app</button>
+    <button class="installClose" onclick="dismissInstallBanner()">✕</button>
+  </div>
+  <div class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</div>
+  <div style="color:var(--text-dim);">Ingresa tu PIN de chofer</div>
+  <input id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" />
+  <button class="btn" onclick="login()">Entrar</button>
+  <div id="loginError"></div>
+  <div class="credit" style="position:absolute;bottom:18px;">⚡ Tecnología de <strong>Lealtad Digital</strong> · <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso legal</a></div>
+</div>
+
+<div id="app">
+  <div id="topbar">
+    <div>
+      <div class="name" id="driverName"></div>
+      <div id="statusText" style="font-size:13px;color:var(--text-dim);">Desconectado</div>
+      <div id="todayCountText" style="font-size:12px;color:var(--text-faint);"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      <div id="toggle">
+        <span>Disponible</span>
+        <div id="switch" onclick="toggleAvailable()"><div class="knob"></div></div>
+      </div>
+      <button onclick="logout()" style="background:none;border:none;color:var(--text-faint);font-size:12px;cursor:pointer;padding:0;">Cerrar sesión</button>
+    </div>
+  </div>
+  <div id="map"></div>
+  <div id="panel">
+    <div id="rideList"></div>
+    <div id="chatBox" class="card" style="display:none;">
+      <div id="chatMessages"></div>
+      <div class="chat-row">
+        <input id="chatInput" placeholder="Escríbele al pasajero..." maxlength="300" onkeydown="if(event.key==='Enter')sendChatMessage()" />
+        <button class="btn-sm" onclick="sendChatMessage()">Enviar</button>
+      </div>
+    </div>
+    <div class="credit footer-credit">⚡ Tecnología de <strong>Lealtad Digital</strong></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API = "";
+let deferredInstallPrompt = null;
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+function initInstallBanner() {
+  if (isStandalone() || localStorage.getItem("motoya_chofer_install_dismissed")) return;
+  const banner = document.getElementById("installBanner");
+  const text = document.getElementById("installText");
+  if (isIOS()) {
+    text.textContent = "📲 Instala MotoYaTicul Chofer: toca Compartir y luego \"Agregar a pantalla de inicio\".";
+    banner.style.display = "flex";
+  } else {
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      text.textContent = "📲 Instala la app para recibir viajes más rápido, sin abrir el navegador.";
+      document.getElementById("installBtn").style.display = "inline-block";
+      banner.style.display = "flex";
+    });
+  }
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  dismissInstallBanner();
+}
+
+function dismissInstallBanner() {
+  document.getElementById("installBanner").style.display = "none";
+  localStorage.setItem("motoya_chofer_install_dismissed", "1");
+}
+
+initInstallBanner();
+
+let driver = null;
+let ws = null;
+let map, myMarker, routeLine;
+let currentPickupMarker = null, currentDestMarker = null;
+const pendingMarkers = {};
+let pendingRides = {};
+let currentRide = null;
+let available = false;
+let myPos = null;
+let todayCount = 0;
+let otherDriverMarkers = new Map();
+let otherDriversPollTimer = null;
+let didFitOtherDrivers = false;
+let cancellingOwnRide = false;
+
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+function appendChatMessage(text, who) {
+  const el = document.getElementById("chatMessages");
+  const div = document.createElement("div");
+  div.className = "chat-msg " + who;
+  div.textContent = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function sendChatMessage() {
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: "chat", text }));
+  appendChatMessage(text, "me");
+  input.value = "";
+}
+
+function showChat() {
+  document.getElementById("chatMessages").innerHTML = "";
+  document.getElementById("chatBox").style.display = "flex";
+}
+
+function hideChat() {
+  document.getElementById("chatBox").style.display = "none";
+}
+
+function numberedIcon(num, color) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:${color};width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff;"><span style="transform:rotate(45deg);font-weight:800;font-size:13px;color:#14161c;">${num}</span></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+  });
+}
+
+function motoIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:#14161c;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #f6a623;font-size:17px;">🛵</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+function taxiIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:#14161c;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #f6a623;font-size:17px;">🚕</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+function vehicleIcon(vehicleType) {
+  return vehicleType === "taxi" ? taxiIcon() : motoIcon();
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+const FARE_THRESHOLD_KM = 3;
+const FARE_NORMAL = 15;
+const FARE_FAR = 20;
+
+function estimateFare(ride) {
+  const passengers = ride.passengers || 1;
+  if (ride.ride_type === "taxi") {
+    return `Viaje foráneo · acuerda el precio con el pasajero · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
+  }
+  let pricePerPerson = FARE_NORMAL;
+  let approx = true;
+  if (ride.dest_lat) {
+    const tripKm = haversine(ride.pickup_lat, ride.pickup_lng, ride.dest_lat, ride.dest_lng);
+    pricePerPerson = tripKm > FARE_THRESHOLD_KM ? FARE_FAR : FARE_NORMAL;
+    approx = false;
+  }
+  const total = pricePerPerson * passengers;
+  return `$${total} MXN · ${passengers} pasajero${passengers > 1 ? "s" : ""}${approx ? " (aprox.)" : ""}`;
+}
+
+async function login() {
+  const pin = document.getElementById("pinInput").value.trim();
+  document.getElementById("loginError").textContent = "";
+  try {
+    const res = await fetch(API + "/api/drivers/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Error");
+    driver = await res.json();
+    todayCount = driver.todayCount || 0;
+    localStorage.setItem("motoya_driver", JSON.stringify(driver));
+    startApp();
+  } catch (e) {
+    document.getElementById("loginError").textContent = e.message;
+  }
+}
+
+function logout() {
+  if (currentRide) {
+    showToast("No puedes cerrar sesión con un viaje activo");
+    return;
+  }
+  if (ws) { ws.onclose = null; ws.close(); }
+  releaseWakeLock();
+  localStorage.removeItem("motoya_driver");
+  location.reload();
+}
+
+function startApp() {
+  document.getElementById("login").style.display = "none";
+  document.getElementById("app").style.display = "flex";
+  document.getElementById("driverName").textContent = driver.name;
+  document.getElementById("driverName").textContent += driver.vehicle_type === "taxi" ? " · 🚕 Taxi" : " · 🛵 Moto";
+  document.getElementById("todayCountText").textContent = `Viajes hoy: ${todayCount}`;
+
+  map = L.map("map").setView([20.2098, -89.4620], 14); // Ticul aprox
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(map);
+
+  connectWs();
+  watchLocation();
+  startOtherDriversPolling();
+}
+
+async function loadOtherDrivers() {
+  const res = await fetch(API + `/api/drivers/available?type=${driver.vehicle_type}`);
+  if (!res.ok) return;
+  const drivers = (await res.json()).filter((d) => d.id !== driver.id);
+  const seen = new Set();
+  for (const d of drivers) {
+    seen.add(d.id);
+    const pos = [d.lat, d.lng];
+    if (otherDriverMarkers.has(d.id)) {
+      otherDriverMarkers.get(d.id).setLatLng(pos);
+    } else {
+      otherDriverMarkers.set(d.id, L.marker(pos, { icon: vehicleIcon(driver.vehicle_type) }).addTo(map).bindPopup(d.name));
+    }
+  }
+  for (const [id, marker] of otherDriverMarkers) {
+    if (!seen.has(id)) {
+      map.removeLayer(marker);
+      otherDriverMarkers.delete(id);
+    }
+  }
+
+  if (!didFitOtherDrivers && otherDriverMarkers.size > 0) {
+    didFitOtherDrivers = true;
+    const points = [...otherDriverMarkers.values()].map((m) => m.getLatLng());
+    points.push(myPos ? L.latLng(myPos.lat, myPos.lng) : map.getCenter());
+    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+  }
+}
+
+function startOtherDriversPolling() {
+  loadOtherDrivers();
+  clearInterval(otherDriversPollTimer);
+  otherDriversPollTimer = setInterval(loadOtherDrivers, 4000);
+}
+
+function connectWs() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws?role=driver&driverId=${driver.id}`);
+  let pingInterval;
+  ws.onopen = () => {
+    if (available) ws.send(JSON.stringify({ type: "status", status: "disponible" }));
+    if (myPos) ws.send(JSON.stringify({ type: "location", lat: myPos.lat, lng: myPos.lng }));
+    pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
+    }, 25000);
+  };
+  ws.onmessage = (ev) => {
+    const { type, payload } = JSON.parse(ev.data);
+    if (type === "new_ride") addPendingRide(payload);
+    if (type === "ride_taken") removePendingRide(payload.rideId);
+    if (type === "ride_cancelled" && currentRide && currentRide.id === payload.rideId && !cancellingOwnRide) {
+      currentRide = null;
+      stopRouteTracking();
+      hideChat();
+      showToast("El pasajero canceló el viaje");
+      renderRideList();
+    }
+    if (type === "chat") appendChatMessage(payload.text, "them");
+  };
+  ws.onclose = (ev) => {
+    clearInterval(pingInterval);
+    if (ev.code === 4001) {
+      localStorage.removeItem("motoya_driver");
+      document.getElementById("app").style.display = "none";
+      document.getElementById("login").style.display = "flex";
+      document.getElementById("loginError").textContent = "Tu cuenta se abrió en otro dispositivo, esta sesión se cerró.";
+      return;
+    }
+    setTimeout(connectWs, 2000);
+  };
+}
+
+function watchLocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.watchPosition(
+    (pos) => {
+      myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (!myMarker) {
+        myMarker = L.marker([myPos.lat, myPos.lng], { title: "Tú", icon: vehicleIcon(driver.vehicle_type) }).addTo(map);
+        if (didFitOtherDrivers && otherDriverMarkers.size > 0) {
+          const points = [...otherDriverMarkers.values()].map((m) => m.getLatLng());
+          points.push(L.latLng(myPos.lat, myPos.lng));
+          map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+        } else {
+          map.setView([myPos.lat, myPos.lng], 15);
+        }
+      } else {
+        myMarker.setLatLng([myPos.lat, myPos.lng]);
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "location", lat: myPos.lat, lng: myPos.lng }));
+      }
+      syncPendingMarkers();
+      renderRideList();
+    },
+    (err) => console.warn("geo error", err),
+    { enableHighAccuracy: true, maximumAge: 3000 }
+  );
+}
+
+function toggleAvailable() {
+  if (currentRide) return; // no se puede cambiar mientras hay viaje activo
+  available = !available;
+  const sw = document.getElementById("switch");
+  sw.classList.toggle("on", available);
+  document.getElementById("statusText").textContent = available ? "Disponible" : "Desconectado";
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "status", status: available ? "disponible" : "offline" }));
+  }
+  if (available) {
+    primeAudio();
+    requestWakeLock();
+  } else {
+    pendingRides = {};
+    syncPendingMarkers();
+    releaseWakeLock();
+    renderRideList();
+  }
+}
+
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+  } catch (e) {
+    console.warn("wake lock error", e);
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (available && document.visibilityState === "visible" && !wakeLock) {
+    requestWakeLock();
+  }
+});
+
+let audioCtx = null;
+
+function primeAudio() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+
+function playNotificationSound() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  [880, 1320].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, now + i * 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.35, now + i * 0.15 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.15 + 0.3);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now + i * 0.15);
+    osc.stop(now + i * 0.15 + 0.35);
+  });
+}
+
+const PENDING_RIDE_COLORS = ["#9b59b6", "#2ecc71", "#e84393", "#1abc9c", "#e67e22", "#c0392b"];
+let pendingColorCounter = 0;
+const pendingRideColors = {};
+const MAX_VISIBLE_PENDING_RIDES = 5;
+
+function colorForPendingRide(id) {
+  if (!(id in pendingRideColors)) {
+    pendingRideColors[id] = PENDING_RIDE_COLORS[pendingColorCounter % PENDING_RIDE_COLORS.length];
+    pendingColorCounter++;
+  }
+  return pendingRideColors[id];
+}
+
+function distanceToPendingRide(ride) {
+  return myPos ? haversine(myPos.lat, myPos.lng, ride.pickup_lat, ride.pickup_lng) : Infinity;
+}
+
+function sortedPendingRides() {
+  return Object.values(pendingRides).sort((a, b) => distanceToPendingRide(a) - distanceToPendingRide(b));
+}
+
+// Solo se pintan pines de las N solicitudes más cercanas: con muchas simultáneas
+// (hospital/universidad en hora pico) el mapa se vuelve ilegible si se muestran todas.
+function syncPendingMarkers() {
+  const visibleIds = new Set(sortedPendingRides().slice(0, MAX_VISIBLE_PENDING_RIDES).map((r) => r.id));
+
+  for (const id of Object.keys(pendingMarkers)) {
+    if (!visibleIds.has(Number(id))) {
+      pendingMarkers[id].forEach((m) => map.removeLayer(m));
+      delete pendingMarkers[id];
+    }
+  }
+
+  for (const id of visibleIds) {
+    if (pendingMarkers[id]) continue;
+    const ride = pendingRides[id];
+    const color = colorForPendingRide(ride.id);
+    const markers = [L.marker([ride.pickup_lat, ride.pickup_lng], { icon: numberedIcon(1, color) }).addTo(map).bindPopup(ride.rider_name)];
+    if (ride.dest_lat) {
+      markers.push(L.marker([ride.dest_lat, ride.dest_lng], { icon: numberedIcon(2, color) }).addTo(map).bindPopup(ride.rider_name));
+    }
+    pendingMarkers[ride.id] = markers;
+  }
+}
+
+function addPendingRide(ride) {
+  playNotificationSound();
+  pendingRides[ride.id] = ride;
+  syncPendingMarkers();
+  renderRideList();
+}
+
+function removePendingRide(id) {
+  delete pendingRides[id];
+  delete pendingRideColors[id];
+  if (pendingMarkers[id]) {
+    pendingMarkers[id].forEach((m) => map.removeLayer(m));
+    delete pendingMarkers[id];
+  }
+  syncPendingMarkers();
+  renderRideList();
+}
+
+let renderedShape = null;
+
+function renderRideList() {
+  const el = document.getElementById("rideList");
+
+  if (currentRide) {
+    const shape = "current:" + currentRide.id + ":" + currentRide.status;
+    if (shape === renderedShape) { updateDistances(); return; }
+    renderedShape = shape;
+
+    const destLine = currentRide.dest_lat
+      ? `<div class="meta">Destino: ${currentRide.dest_label || "punto marcado en el mapa"} (${haversine(currentRide.pickup_lat, currentRide.pickup_lng, currentRide.dest_lat, currentRide.dest_lng).toFixed(1)} km desde la recogida)</div>`
+      : "";
+    const fareLine = `<div class="meta fare">${estimateFare(currentRide)}</div>`;
+
+    if (currentRide.status === "aceptado") {
+      const dist = myPos ? haversine(myPos.lat, myPos.lng, currentRide.pickup_lat, currentRide.pickup_lng).toFixed(1) : "?";
+      el.innerHTML = `
+        <div class="card ride-card active fade-in">
+          <div class="label">Yendo a recoger</div>
+          <div class="meta">Pasajero: ${currentRide.rider_name} · ${currentRide.rider_phone}</div>
+          <div class="meta">Recogida: ${currentRide.pickup_label || "punto marcado en el mapa"} (<span id="dist-current">${dist}</span> km · <span id="eta-current"></span>)</div>
+          ${destLine}
+          ${fareLine}
+          <button class="btn" id="btnArrived" onclick="arriveAtPickup()">Ya llegué</button>
+          <button class="btn-danger" onclick="cancelCurrentRide()">Cancelar viaje</button>
+        </div>`;
+    } else if (currentRide.status === "llegue") {
+      el.innerHTML = `
+        <div class="card ride-card active fade-in">
+          <div class="label">Esperando al pasajero</div>
+          <div class="meta">Pasajero: ${currentRide.rider_name} · ${currentRide.rider_phone}</div>
+          <div class="meta">Recogida: ${currentRide.pickup_label || "punto marcado en el mapa"}</div>
+          ${destLine}
+          ${fareLine}
+          <button class="btn" onclick="startTrip()">Iniciar viaje</button>
+          <button class="btn-danger" onclick="cancelCurrentRide()">Cancelar viaje</button>
+        </div>`;
+    } else if (currentRide.status === "en_curso") {
+      const dist = myPos && currentRide.dest_lat ? haversine(myPos.lat, myPos.lng, currentRide.dest_lat, currentRide.dest_lng).toFixed(1) : null;
+      el.innerHTML = `
+        <div class="card ride-card active fade-in">
+          <div class="label">Viaje en curso</div>
+          <div class="meta">Pasajero: ${currentRide.rider_name} · ${currentRide.rider_phone}</div>
+          ${currentRide.dest_lat
+            ? `<div class="meta">Destino: ${currentRide.dest_label || "punto marcado en el mapa"} (<span id="dist-current">${dist}</span> km · <span id="eta-current"></span>)</div>`
+            : `<div class="meta">Sin destino marcado</div>`}
+          ${fareLine}
+          <button class="btn" onclick="completeRide()">Finalizar viaje</button>
+        </div>`;
+    }
+    return;
+  }
+
+  const allPending = sortedPendingRides();
+  const rides = allPending.slice(0, MAX_VISIBLE_PENDING_RIDES);
+  const shape = rides.length === 0 ? "empty:" + available : "pending:" + rides.map((r) => r.id).join(",") + ":" + allPending.length;
+  if (shape === renderedShape) { updateDistances(); return; }
+  renderedShape = shape;
+
+  if (rides.length === 0) {
+    el.innerHTML = `<div class="empty">${available ? "Esperando solicitudes..." : "Actívate como disponible para recibir viajes"}</div>`;
+    return;
+  }
+  const cards = rides.map((r) => {
+    const dist = myPos ? haversine(myPos.lat, myPos.lng, r.pickup_lat, r.pickup_lng).toFixed(1) : "?";
+    const color = colorForPendingRide(r.id);
+    return `
+      <div class="card ride-card pending fade-in">
+        <div class="label"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:7px;"></span>${r.rider_name}</div>
+        <div class="meta">Recogida a <span id="dist-${r.id}">${dist}</span> km${r.pickup_label ? " · " + r.pickup_label : ""}</div>
+        ${r.dest_lat ? `<div class="meta">Destino: ${r.dest_label || "punto marcado en el mapa"} (${haversine(r.pickup_lat, r.pickup_lng, r.dest_lat, r.dest_lng).toFixed(1)} km desde la recogida)</div>` : ""}
+        <div class="meta fare">${estimateFare(r)}</div>
+        <a class="btn-sm" href="tel:${r.rider_phone}" style="display:block;text-align:center;margin-bottom:6px;text-decoration:none;">📞 Llamar al pasajero</a>
+        <button class="btn" onclick="acceptRide(${r.id})">Aceptar</button>
+      </div>`;
+  }).join("");
+  const moreCount = allPending.length - rides.length;
+  const moreHint = moreCount > 0
+    ? `<div class="empty" style="padding:8px 0;">+${moreCount} solicitud${moreCount === 1 ? "" : "es"} más lejos</div>`
+    : "";
+  el.innerHTML = cards + moreHint;
+}
+
+function updateDistances() {
+  if (!myPos) return;
+  if (currentRide) {
+    if (currentRide.status === "aceptado") {
+      const dist = haversine(myPos.lat, myPos.lng, currentRide.pickup_lat, currentRide.pickup_lng);
+      const el = document.getElementById("dist-current");
+      if (el) el.textContent = dist.toFixed(1);
+      const btn = document.getElementById("btnArrived");
+      if (btn) btn.classList.toggle("ready", dist <= 0.15);
+    } else if (currentRide.status === "en_curso" && currentRide.dest_lat) {
+      const dist = haversine(myPos.lat, myPos.lng, currentRide.dest_lat, currentRide.dest_lng);
+      const el = document.getElementById("dist-current");
+      if (el) el.textContent = dist.toFixed(1);
+    }
+    return;
+  }
+  for (const r of Object.values(pendingRides)) {
+    const el = document.getElementById(`dist-${r.id}`);
+    if (el) el.textContent = haversine(myPos.lat, myPos.lng, r.pickup_lat, r.pickup_lng).toFixed(1);
+  }
+}
+
+let routeRefreshInterval;
+
+async function fetchRoute(from, to) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("routing failed");
+  const data = await res.json();
+  const coords = data.routes[0].geometry.coordinates;
+  return { points: coords.map(([lng, lat]) => [lat, lng]), duration: data.routes[0].duration };
+}
+
+function updateEtaDisplay(durationSeconds) {
+  const el = document.getElementById("eta-current");
+  if (!el) return;
+  el.textContent = durationSeconds != null ? `~${Math.max(1, Math.round(durationSeconds / 60))} min` : "";
+}
+
+async function updateRouteLine() {
+  if (!currentRide || !myPos) return;
+
+  let target = null;
+  let color = "#f6a623";
+  if (currentRide.status === "aceptado") {
+    target = { lat: currentRide.pickup_lat, lng: currentRide.pickup_lng };
+  } else if (currentRide.status === "en_curso" && currentRide.dest_lat) {
+    target = { lat: currentRide.dest_lat, lng: currentRide.dest_lng };
+    color = "#3498db";
+  }
+
+  if (!target) {
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+    return;
+  }
+
+  let points, duration = null;
+  try {
+    const route = await fetchRoute(myPos, target);
+    points = route.points;
+    duration = route.duration;
+  } catch {
+    points = [[myPos.lat, myPos.lng], [target.lat, target.lng]];
+  }
+  if (!currentRide) return; // el viaje pudo terminar mientras esperábamos la respuesta
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline(points, { color, weight: 4 }).addTo(map);
+  updateEtaDisplay(duration);
+}
+
+async function acceptRide(id) {
+  const res = await fetch(API + `/api/rides/${id}/accept`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ driverId: driver.id }),
+  });
+  if (!res.ok) {
+    removePendingRide(id);
+    showToast((await res.json()).error || "Ya no disponible");
+    return;
+  }
+  currentRide = await res.json();
+  pendingRides = {};
+  for (const markers of Object.values(pendingMarkers)) markers.forEach((m) => map.removeLayer(m));
+  Object.keys(pendingMarkers).forEach((k) => delete pendingMarkers[k]);
+
+  currentPickupMarker = L.marker([currentRide.pickup_lat, currentRide.pickup_lng], { icon: numberedIcon(1, "#f6a623") }).addTo(map);
+  if (currentRide.dest_lat) {
+    currentDestMarker = L.marker([currentRide.dest_lat, currentRide.dest_lng], { icon: numberedIcon(2, "#3498db") }).addTo(map);
+  }
+  updateRouteLine();
+  routeRefreshInterval = setInterval(updateRouteLine, 15000);
+  showChat();
+  renderRideList();
+}
+
+function stopRouteTracking() {
+  clearInterval(routeRefreshInterval);
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  if (currentPickupMarker) { map.removeLayer(currentPickupMarker); currentPickupMarker = null; }
+  if (currentDestMarker) { map.removeLayer(currentDestMarker); currentDestMarker = null; }
+}
+
+async function arriveAtPickup() {
+  const res = await fetch(API + `/api/rides/${currentRide.id}/arrived`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ driverId: driver.id }),
+  });
+  if (!res.ok) {
+    showToast((await res.json()).error || "No se pudo actualizar");
+    return;
+  }
+  currentRide.status = "llegue";
+  updateRouteLine();
+  renderRideList();
+}
+
+async function startTrip() {
+  const res = await fetch(API + `/api/rides/${currentRide.id}/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ driverId: driver.id }),
+  });
+  if (!res.ok) {
+    showToast((await res.json()).error || "No se pudo actualizar");
+    return;
+  }
+  currentRide.status = "en_curso";
+  updateRouteLine();
+  renderRideList();
+}
+
+async function completeRide() {
+  const res = await fetch(API + `/api/rides/${currentRide.id}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ driverId: driver.id }),
+  });
+  if (!res.ok) {
+    showToast((await res.json()).error || "No se pudo finalizar");
+    return;
+  }
+  const data = await res.json();
+  todayCount = data.todayCount ?? todayCount + 1;
+  driver.todayCount = todayCount;
+  localStorage.setItem("motoya_driver", JSON.stringify(driver));
+  document.getElementById("todayCountText").textContent = `Viajes hoy: ${todayCount}`;
+  currentRide = null;
+  stopRouteTracking();
+  hideChat();
+  showToast("Viaje completado ✅");
+  renderRideList();
+}
+
+async function cancelCurrentRide() {
+  if (!currentRide) return;
+  if (!confirm("¿Cancelar este viaje? Úsalo si el pasajero no se presentó o algo salió mal.")) return;
+  cancellingOwnRide = true;
+  const rideId = currentRide.id;
+  await fetch(API + `/api/rides/${rideId}/cancel`, { method: "POST" });
+  currentRide = null;
+  stopRouteTracking();
+  hideChat();
+  cancellingOwnRide = false;
+  showToast("Viaje cancelado");
+  renderRideList();
+}
+
+// Auto-login si ya había sesión
+const saved = localStorage.getItem("motoya_driver");
+if (saved) {
+  driver = JSON.parse(saved);
+  todayCount = driver.todayCount || 0;
+  startApp();
+}
+</script>
+</body>
+</html>
