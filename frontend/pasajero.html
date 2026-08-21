@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>MotoYaTicul</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%BA%3C/text%3E%3C/svg%3E" />
+<link rel="manifest" href="manifest-pasajero.json" />
+<meta name="theme-color" content="#f6a623" />
+<link rel="apple-touch-icon" href="icons/icon-512.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="MotoYaTicul" />
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  .screen { display: none; flex-direction: column; height: 100vh; }
+  .screen.active { display: flex; }
+  #form { align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
+  #form input { width: 260px; }
+  #formError { color: var(--danger); font-size: 14px; min-height: 18px; }
+  .installBanner { position: absolute; top: 14px; left: 14px; right: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; text-align: left; font-size: 13.5px; }
+  .installBanner #installText { flex: 1; color: var(--text); line-height: 1.4; }
+  .installClose { background: none; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; padding: 4px; flex-shrink: 0; }
+  .btn:disabled { opacity: 0.4; }
+  #map { flex: 1; min-height: 0; }
+  #pickBar { padding: 12px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  #pickBar .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  #pickBar .row .btn-secondary { flex: 1; }
+  #pickBar .hint { font-size: 13.5px; color: var(--text-dim); text-align: center; }
+  .service-tab { flex: 1; padding: 10px 8px; font-size: 13.5px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-dim); cursor: pointer; }
+  .service-tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  #referenceInput { width: 100%; }
+  .stepper { display: flex; align-items: center; gap: 12px; }
+  .stepper .btn-sm { width: 34px; height: 34px; font-size: 18px; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .stepper span#passengerCount { font-weight: 700; font-size: 16px; min-width: 16px; text-align: center; }
+  #fareEstimate { color: var(--accent); font-weight: 600; }
+  #status { align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; }
+  #status .big { font-size: 21px; font-weight: 700; }
+  .etaText { color: var(--accent); font-size: 14.5px; font-weight: 600; }
+  #driverCard { padding: 18px; width: 280px; }
+  #driverCard .name { font-size: 18px; font-weight: 700; }
+  #driverCard .meta { color: var(--text-dim); margin-top: 4px; font-size: 14px; }
+  .driverInfo { display: flex; align-items: center; gap: 14px; }
+  .driverPhoto { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--accent); cursor: pointer; }
+  .driverPhotoFallback { display: flex; align-items: center; justify-content: center; font-size: 26px; background: var(--bg-card); }
+  #photoLightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 2000; align-items: center; justify-content: center; padding: 24px; }
+  #photoLightbox.show { display: flex; }
+  #photoLightbox img { max-width: 90vw; max-height: 80vh; border-radius: var(--radius-lg); border: 3px solid var(--accent); }
+  #ratingBox { padding: 18px; text-align: center; }
+  .ratingQuestion { margin: 0 0 12px; font-size: 15px; }
+  .ratingButtons { display: flex; gap: 10px; justify-content: center; }
+  .ratingButtons .btn { width: auto; padding: 10px 20px; }
+  #statusMap { width: 100%; height: 40vh; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); }
+  #connWarning { display: none; color: var(--danger); font-size: 13.5px; text-align: center; }
+  #chatBox { display: none; flex-direction: column; gap: 8px; padding: 14px; width: 280px; }
+  #chatMessages { max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+  .chat-msg { padding: 7px 11px; border-radius: var(--radius-sm); max-width: 82%; font-size: 13.5px; line-height: 1.35; }
+  .chat-msg.me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); }
+  .chat-msg.them { align-self: flex-start; background: var(--bg-card-hover); color: var(--text); }
+  .chat-row { display: flex; gap: 6px; }
+  .chat-row input { flex: 1; padding: 10px 12px; font-size: 14px; }
+  .chat-row button { padding: 10px 16px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="form" class="screen active">
+  <div id="installBanner" class="card installBanner" style="display:none;">
+    <div id="installText"></div>
+    <button class="btn-sm" id="installBtn" onclick="installApp()" style="display:none;">Instalar app</button>
+    <button class="installClose" onclick="dismissInstallBanner()">✕</button>
+  </div>
+  <div class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</div>
+  <div style="color:var(--text-dim);">Pide tu mototaxi</div>
+  <input id="nameInput" placeholder="Tu nombre" oninput="this.value = this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]/g, '')" />
+  <input id="phoneInput" placeholder="Tu teléfono" inputmode="numeric" maxlength="10" oninput="this.value = this.value.replace(/\D/g, '')" />
+  <button class="btn" onclick="goToMap()">Continuar</button>
+  <div id="formError"></div>
+  <div class="credit" style="position:absolute;bottom:18px;">⚡ Tecnología de <strong>Lealtad Digital</strong> · <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso legal</a></div>
+</div>
+
+<div id="mapScreen" class="screen">
+  <div id="map"></div>
+  <div id="pickBar">
+    <div class="row" id="serviceTypeRow" style="gap:8px;">
+      <button class="btn btn-sm service-tab active" id="tabMoto" onclick="setServiceType('moto')">🛵 Moto</button>
+      <button class="btn btn-sm service-tab" id="tabTaxi" onclick="setServiceType('taxi')">🚕 Taxi (viajes largos)</button>
+    </div>
+    <div class="hint" id="pickHint">Toca el mapa para marcar dónde te recogemos</div>
+    <div class="row">
+      <button class="btn btn-secondary" onclick="useMyLocation()">Usar mi ubicación</button>
+      <button class="btn btn-secondary" onclick="resetPins()">Borrar pines</button>
+    </div>
+    <div class="row">
+      <span style="color:var(--text-dim);font-size:14px;">Pasajeros</span>
+      <div class="stepper">
+        <button class="btn-sm" onclick="changePassengers(-1)">−</button>
+        <span id="passengerCount">1</span>
+        <button class="btn-sm" onclick="changePassengers(1)">+</button>
+      </div>
+    </div>
+    <input id="referenceInput" placeholder="Referencia (ej. casa azul, portón negro)" />
+    <div id="fareEstimate" class="hint"></div>
+    <button class="btn" id="requestBtn" disabled onclick="requestRide()">Pedir mototaxi</button>
+  </div>
+</div>
+
+<div id="status" class="screen">
+  <div class="big" id="statusText">Buscando chofer cercano...</div>
+  <div id="etaText" class="etaText"></div>
+  <div id="connWarning"></div>
+  <div id="statusMap"></div>
+  <div id="driverCard" class="card fade-in" style="display:none;"></div>
+  <div id="chatBox" class="card fade-in">
+    <div id="chatMessages"></div>
+    <div class="chat-row">
+      <input id="chatInput" placeholder="Escríbele a tu chofer..." maxlength="300" onkeydown="if(event.key==='Enter')sendChatMessage()" />
+      <button class="btn btn-secondary" onclick="sendChatMessage()">Enviar</button>
+    </div>
+  </div>
+  <button class="btn btn-secondary" id="shareBtn" onclick="shareRide()">📍 Compartir viaje en vivo</button>
+  <button class="btn btn-secondary" id="cancelBtn" onclick="cancelRide()">Cancelar</button>
+  <div id="ratingBox" class="card fade-in" style="display:none;">
+    <p class="ratingQuestion">¿Tuviste buen servicio?</p>
+    <div class="ratingButtons">
+      <button class="btn btn-secondary" onclick="rateRide(1)">👍 Sí</button>
+      <button class="btn btn-secondary" onclick="rateRide(0)">👎 No</button>
+    </div>
+  </div>
+  <button class="btn" id="newRideBtn" style="display:none;" onclick="location.reload()">Pedir otro viaje</button>
+  <div class="credit">⚡ Tecnología de <strong>Lealtad Digital</strong> · <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso legal</a></div>
+</div>
+
+<div id="photoLightbox" onclick="closePhotoLightbox()">
+  <img id="photoLightboxImg" src="" />
+</div>
+
+<script>
+function openPhotoLightbox(src) {
+  document.getElementById("photoLightboxImg").src = src;
+  document.getElementById("photoLightbox").classList.add("show");
+}
+function closePhotoLightbox() {
+  document.getElementById("photoLightbox").classList.remove("show");
+}
+
+const API = "";
+let deferredInstallPrompt = null;
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+function initInstallBanner() {
+  if (isStandalone() || localStorage.getItem("motoya_install_dismissed")) return;
+  const banner = document.getElementById("installBanner");
+  const text = document.getElementById("installText");
+  if (isIOS()) {
+    text.textContent = "📲 Instala MotoYaTicul: toca Compartir y luego \"Agregar a pantalla de inicio\".";
+    banner.style.display = "flex";
+  } else {
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      text.textContent = "📲 Instala MotoYaTicul en tu celular para pedir tu mototaxi más rápido.";
+      document.getElementById("installBtn").style.display = "inline-block";
+      banner.style.display = "flex";
+    });
+  }
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  dismissInstallBanner();
+}
+
+function dismissInstallBanner() {
+  document.getElementById("installBanner").style.display = "none";
+  localStorage.setItem("motoya_install_dismissed", "1");
+}
+
+initInstallBanner();
+
+let map, statusMap;
+let pickup = null, dest = null;
+let pickupMarker = null, destMarker = null;
+let ride = null, ws = null;
+let driverMarker = null;
+let driverPos = null;
+let routeLine = null;
+let routeRefreshInterval = null;
+let currentRideStatus = "buscando";
+let passengers = 1;
+let serviceType = "moto";
+
+async function fetchRoute(from, to) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("routing failed");
+  const data = await res.json();
+  const coords = data.routes[0].geometry.coordinates;
+  return { points: coords.map(([lng, lat]) => [lat, lng]), duration: data.routes[0].duration };
+}
+
+function updateEtaDisplay(durationSeconds) {
+  const el = document.getElementById("etaText");
+  if (!el) return;
+  el.textContent = durationSeconds != null ? `Llega en ~${Math.max(1, Math.round(durationSeconds / 60))} min` : "";
+}
+
+async function updateRouteLine() {
+  if (!driverPos || ["completado", "cancelado"].includes(currentRideStatus)) return;
+
+  let target = null;
+  let color = "#f6a623";
+  if (currentRideStatus === "aceptado") {
+    target = pickup;
+  } else if (currentRideStatus === "en_curso" && dest) {
+    target = dest;
+    color = "#3498db";
+  }
+
+  if (!target) {
+    if (routeLine) { statusMap.removeLayer(routeLine); routeLine = null; }
+    updateEtaDisplay(null);
+    return;
+  }
+
+  let points, duration = null;
+  try {
+    const route = await fetchRoute(driverPos, target);
+    points = route.points;
+    duration = route.duration;
+  } catch {
+    points = [[driverPos.lat, driverPos.lng], [target.lat, target.lng]];
+  }
+  if (["completado", "cancelado"].includes(currentRideStatus)) return;
+  if (routeLine) statusMap.removeLayer(routeLine);
+  routeLine = L.polyline(points, { color, weight: 4 }).addTo(statusMap);
+  updateEtaDisplay(duration);
+}
+
+function startRouteTracking() {
+  clearInterval(routeRefreshInterval);
+  updateRouteLine();
+  routeRefreshInterval = setInterval(updateRouteLine, 15000);
+}
+
+function stopRouteTracking() {
+  clearInterval(routeRefreshInterval);
+  routeRefreshInterval = null;
+  if (routeLine) { statusMap.removeLayer(routeLine); routeLine = null; }
+  updateEtaDisplay(null);
+}
+
+const FARE_THRESHOLD_KM = 3;
+const FARE_NORMAL = 15;
+const FARE_FAR = 20;
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function changePassengers(delta) {
+  passengers = Math.min(4, Math.max(1, passengers + delta));
+  document.getElementById("passengerCount").textContent = passengers;
+  updateFareEstimate();
+}
+
+function updateFareEstimate() {
+  const el = document.getElementById("fareEstimate");
+  if (!pickup) { el.textContent = ""; return; }
+  if (serviceType === "taxi") {
+    el.textContent = "Viaje foráneo: acuerda el precio directo con el chofer";
+    return;
+  }
+  let pricePerPerson = FARE_NORMAL;
+  let approx = true;
+  if (dest) {
+    const tripKm = haversine(pickup.lat, pickup.lng, dest.lat, dest.lng);
+    pricePerPerson = tripKm > FARE_THRESHOLD_KM ? FARE_FAR : FARE_NORMAL;
+    approx = false;
+  }
+  const total = pricePerPerson * passengers;
+  el.textContent = `Tarifa estimada: $${total} MXN (${passengers} pasajero${passengers > 1 ? "s" : ""})${approx ? " · aprox., marca destino para afinar" : ""}`;
+}
+
+function setServiceType(type) {
+  if (serviceType === type) return;
+  serviceType = type;
+  document.getElementById("tabMoto").classList.toggle("active", type === "moto");
+  document.getElementById("tabTaxi").classList.toggle("active", type === "taxi");
+  document.getElementById("requestBtn").textContent = type === "taxi" ? "Pedir taxi" : "Pedir mototaxi";
+  updateFareEstimate();
+  if (map) startAvailableDriversPolling();
+}
+
+function numberedIcon(num, color) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:${color};width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff;"><span style="transform:rotate(45deg);font-weight:800;font-size:13px;color:#14161c;">${num}</span></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+  });
+}
+
+function motoIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:#14161c;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #f6a623;font-size:17px;">🛵</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+function taxiIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:#14161c;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #f6a623;font-size:17px;">🚕</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+let availableDriverMarkers = new Map();
+let availableDriversPollTimer = null;
+let didFitAvailableDrivers = false;
+
+async function loadAvailableDrivers() {
+  const res = await fetch(API + `/api/drivers/available?type=${serviceType}`);
+  if (!res.ok) return;
+  const drivers = await res.json();
+  const seen = new Set();
+  const icon = serviceType === "taxi" ? taxiIcon() : motoIcon();
+  for (const d of drivers) {
+    seen.add(d.id);
+    const pos = [d.lat, d.lng];
+    if (availableDriverMarkers.has(d.id)) {
+      availableDriverMarkers.get(d.id).setLatLng(pos);
+    } else {
+      availableDriverMarkers.set(d.id, L.marker(pos, { icon }).addTo(map).bindPopup(d.name));
+    }
+  }
+  for (const [id, marker] of availableDriverMarkers) {
+    if (!seen.has(id)) {
+      map.removeLayer(marker);
+      availableDriverMarkers.delete(id);
+    }
+  }
+
+  // Solo la primera vez que hay choferes: ajusta el mapa para que quepan
+  // todos. Después no, para no mover el mapa mientras el pasajero marca sus puntos.
+  if (!didFitAvailableDrivers && availableDriverMarkers.size > 0) {
+    didFitAvailableDrivers = true;
+    const points = [...availableDriverMarkers.values()].map((m) => m.getLatLng());
+    points.push(map.getCenter());
+    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+  }
+}
+
+function startAvailableDriversPolling() {
+  didFitAvailableDrivers = false;
+  loadAvailableDrivers();
+  clearInterval(availableDriversPollTimer);
+  availableDriversPollTimer = setInterval(loadAvailableDrivers, 4000);
+}
+
+function stopAvailableDriversPolling() {
+  clearInterval(availableDriversPollTimer);
+  for (const marker of availableDriverMarkers.values()) map.removeLayer(marker);
+  availableDriverMarkers.clear();
+}
+
+function goToMap() {
+  const name = document.getElementById("nameInput").value.trim();
+  const phone = document.getElementById("phoneInput").value.trim();
+  document.getElementById("formError").textContent = "";
+  if (!name || !phone) {
+    document.getElementById("formError").textContent = "Escribe tu nombre y teléfono";
+    return;
+  }
+  localStorage.setItem("motoya_rider", JSON.stringify({ name, phone }));
+  document.getElementById("form").classList.remove("active");
+  document.getElementById("mapScreen").classList.add("active");
+
+  map = L.map("map").setView([20.2098, -89.4620], 14); // Ticul aprox
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(map);
+
+  map.on("click", (e) => placePoint(e.latlng));
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const me = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      if (didFitAvailableDrivers && availableDriverMarkers.size > 0) {
+        const points = [...availableDriverMarkers.values()].map((m) => m.getLatLng());
+        points.push(me);
+        map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+      } else {
+        map.setView(me, 15);
+      }
+    }, () => {});
+  }
+
+  startAvailableDriversPolling();
+}
+
+function placePoint(latlng) {
+  if (!pickup) {
+    pickup = latlng;
+    pickupMarker = L.marker(pickup, { icon: numberedIcon(1, "#f6a623") }).addTo(map).bindPopup("Recogida").openPopup();
+    document.getElementById("pickHint").textContent = "Ahora toca el mapa para marcar tu destino (opcional)";
+  } else if (!dest) {
+    dest = latlng;
+    destMarker = L.marker(dest, { icon: numberedIcon(2, "#3498db") }).addTo(map).bindPopup("Destino").openPopup();
+    document.getElementById("pickHint").textContent = "Listo. Puedes pedir tu mototaxi";
+  }
+  document.getElementById("requestBtn").disabled = !pickup;
+  updateFareEstimate();
+}
+
+function useMyLocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition((pos) => {
+    pickup = L.latLng(pos.coords.latitude, pos.coords.longitude);
+    if (pickupMarker) map.removeLayer(pickupMarker);
+    pickupMarker = L.marker(pickup, { icon: numberedIcon(1, "#f6a623") }).addTo(map).bindPopup("Recogida (tu ubicación)").openPopup();
+    map.setView(pickup, 16);
+    document.getElementById("pickHint").textContent = "Ahora toca el mapa para marcar tu destino (opcional)";
+    document.getElementById("requestBtn").disabled = false;
+    updateFareEstimate();
+  });
+}
+
+function resetPins() {
+  if (pickupMarker) map.removeLayer(pickupMarker);
+  if (destMarker) map.removeLayer(destMarker);
+  pickup = null; dest = null; pickupMarker = null; destMarker = null;
+  document.getElementById("pickHint").textContent = "Toca el mapa para marcar dónde te recogemos";
+  document.getElementById("requestBtn").disabled = true;
+  updateFareEstimate();
+}
+
+async function requestRide() {
+  const rider = JSON.parse(localStorage.getItem("motoya_rider"));
+  const pickupLabel = document.getElementById("referenceInput").value.trim();
+  const res = await fetch(API + "/api/rides", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      rider_name: rider.name,
+      rider_phone: rider.phone,
+      pickup_lat: pickup.lat,
+      pickup_lng: pickup.lng,
+      pickup_label: pickupLabel || null,
+      dest_lat: dest ? dest.lat : null,
+      dest_lng: dest ? dest.lng : null,
+      passengers,
+      ride_type: serviceType,
+    }),
+  });
+  ride = await res.json();
+  localStorage.setItem("motoya_active_ride", String(ride.id));
+
+  stopAvailableDriversPolling();
+  document.getElementById("mapScreen").classList.remove("active");
+  document.getElementById("status").classList.add("active");
+
+  statusMap = L.map("statusMap").setView([pickup.lat, pickup.lng], 15);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(statusMap);
+  L.marker([pickup.lat, pickup.lng], { icon: numberedIcon(1, "#f6a623") }).addTo(statusMap);
+  if (dest) L.marker([dest.lat, dest.lng], { icon: numberedIcon(2, "#3498db") }).addTo(statusMap);
+
+  connectWs();
+  requestWakeLock();
+}
+
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+  } catch (e) {
+    console.warn("wake lock error", e);
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+document.addEventListener("visibilitychange", () => {
+  const rideActive = ride && !["completado", "cancelado"].includes(currentRideStatus);
+  if (rideActive && document.visibilityState === "visible" && !wakeLock) {
+    requestWakeLock();
+  }
+});
+
+function connectWs() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws?role=rider&rideId=${ride.id}`);
+  let pingInterval;
+  ws.onopen = () => {
+    pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
+    }, 25000);
+  };
+  ws.onmessage = (ev) => {
+    const { type, payload } = JSON.parse(ev.data);
+    if (type === "ride_accepted") onDriverAssigned(payload);
+    if (type === "driver_location") onDriverLocation(payload);
+    if (type === "status_change" && payload.status === "llegue") onDriverArrived();
+    if (type === "status_change" && payload.status === "en_curso") onTripStarted();
+    if (type === "status_change" && payload.status === "completado") onCompleted();
+    if (type === "status_change" && payload.status === "cancelado") onCancelledByDriver();
+    if (type === "driver_disconnected") onDriverDisconnected();
+    if (type === "driver_reconnected") onDriverReconnected();
+    if (type === "driver_lost") onDriverLost();
+    if (type === "no_drivers_available") onNoDriversAvailable();
+    if (type === "chat") appendChatMessage(payload.text, "them");
+  };
+  ws.onclose = () => {
+    clearInterval(pingInterval);
+    if (ride && !["completado", "cancelado"].includes(currentRideStatus)) {
+      setTimeout(connectWs, 2000);
+    }
+  };
+}
+
+function onDriverAssigned(driver) {
+  currentRideStatus = "aceptado";
+  document.getElementById("statusText").textContent = "¡Chofer en camino!";
+  document.getElementById("cancelBtn").style.display = "none";
+  const card = document.getElementById("driverCard");
+  card.style.display = "block";
+  card.innerHTML = `
+    <div class="driverInfo">
+      ${driver.photo ? `<img class="driverPhoto" src="${driver.photo}" onclick="openPhotoLightbox('${driver.photo}')" />` : `<div class="driverPhoto driverPhotoFallback">${serviceType === "taxi" ? "🚕" : "🛵"}</div>`}
+      <div>
+        <div class="name">${driver.name}</div>
+        <div class="meta">${driver.vehicle || (serviceType === "taxi" ? "Taxi" : "Mototaxi")}</div>
+        <div class="meta">Tel: ${driver.phone}</div>
+      </div>
+    </div>`;
+  if (driver.lat) {
+    driverPos = { lat: driver.lat, lng: driver.lng };
+    driverMarker = L.marker([driver.lat, driver.lng], { icon: serviceType === "taxi" ? taxiIcon() : motoIcon() }).addTo(statusMap);
+    startRouteTracking();
+  }
+  document.getElementById("chatBox").style.display = "flex";
+}
+
+function onDriverArrived() {
+  currentRideStatus = "llegue";
+  document.getElementById("statusText").textContent = `Tu chofer ya llegó ${serviceType === "taxi" ? "🚕" : "🛵"} Sal cuando estés listo`;
+  updateRouteLine();
+}
+
+function onTripStarted() {
+  currentRideStatus = "en_curso";
+  document.getElementById("statusText").textContent = `En camino a tu destino ${serviceType === "taxi" ? "🚕" : "🛵"}`;
+  updateRouteLine();
+}
+
+function appendChatMessage(text, who) {
+  const el = document.getElementById("chatMessages");
+  const div = document.createElement("div");
+  div.className = "chat-msg " + who;
+  div.textContent = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function sendChatMessage() {
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: "chat", text }));
+  appendChatMessage(text, "me");
+  input.value = "";
+}
+
+function onDriverDisconnected() {
+  const w = document.getElementById("connWarning");
+  w.textContent = "⚠️ Tu chofer perdió la conexión, esperando que regrese...";
+  w.style.display = "block";
+  document.getElementById("cancelBtn").style.display = "inline-block";
+}
+
+function onDriverReconnected() {
+  document.getElementById("connWarning").style.display = "none";
+  if (!["completado", "cancelado"].includes(currentRideStatus)) {
+    document.getElementById("cancelBtn").style.display = "none";
+  }
+}
+
+function onDriverLost() {
+  const w = document.getElementById("connWarning");
+  w.textContent = "😕 Perdimos contacto con tu chofer. Puedes cancelar y pedir otro viaje.";
+  w.style.display = "block";
+  document.getElementById("cancelBtn").style.display = "inline-block";
+}
+
+function onDriverLocation({ lat, lng }) {
+  driverPos = { lat, lng };
+  if (!driverMarker) {
+    driverMarker = L.marker([lat, lng], { icon: serviceType === "taxi" ? taxiIcon() : motoIcon() }).addTo(statusMap);
+  } else {
+    driverMarker.setLatLng([lat, lng]);
+  }
+  if (!routeRefreshInterval) startRouteTracking();
+}
+
+function onCompleted() {
+  currentRideStatus = "completado";
+  localStorage.removeItem("motoya_active_ride");
+  document.getElementById("statusText").textContent = "¡Buen viaje! Gracias por usar MotoYaTicul 🛵";
+  document.getElementById("connWarning").style.display = "none";
+  document.getElementById("driverCard").style.display = "none";
+  document.getElementById("chatBox").style.display = "none";
+  document.getElementById("shareBtn").style.display = "none";
+  document.getElementById("cancelBtn").style.display = "none";
+  document.getElementById("newRideBtn").style.display = "inline-block";
+  document.getElementById("ratingBox").style.display = "block";
+  stopRouteTracking();
+  releaseWakeLock();
+}
+
+async function shareRide() {
+  if (!ride) return;
+  const link = `${location.origin}/seguir.html?id=${ride.id}`;
+  const text = `Sigue mi viaje en vivo con MotoYaTicul: ${link}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Mi viaje en MotoYaTicul", text, url: link });
+      return;
+    } catch {
+      // el usuario canceló el share sheet, cae al link de WhatsApp
+    }
+  }
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+}
+
+async function rateRide(rating) {
+  if (!ride) return;
+  const res = await fetch(API + `/api/rides/${ride.id}/rate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rating }),
+  });
+  const box = document.getElementById("ratingBox");
+  if (!res.ok) {
+    box.innerHTML = '<p class="ratingQuestion">No se pudo enviar tu calificación</p>';
+    return;
+  }
+  box.innerHTML = '<p class="ratingQuestion">¡Gracias por tu opinión! 🙏</p>';
+}
+
+function onNoDriversAvailable() {
+  currentRideStatus = "cancelado";
+  localStorage.removeItem("motoya_active_ride");
+  document.getElementById("statusText").textContent = "😕 No hay choferes disponibles ahorita. Intenta de nuevo en unos minutos.";
+  document.getElementById("connWarning").style.display = "none";
+  document.getElementById("chatBox").style.display = "none";
+  document.getElementById("shareBtn").style.display = "none";
+  document.getElementById("cancelBtn").style.display = "none";
+  document.getElementById("newRideBtn").style.display = "inline-block";
+  stopRouteTracking();
+  releaseWakeLock();
+}
+
+function onCancelledByDriver() {
+  currentRideStatus = "cancelado";
+  localStorage.removeItem("motoya_active_ride");
+  document.getElementById("statusText").textContent = "El viaje fue cancelado.";
+  document.getElementById("connWarning").style.display = "none";
+  document.getElementById("chatBox").style.display = "none";
+  document.getElementById("shareBtn").style.display = "none";
+  document.getElementById("cancelBtn").style.display = "none";
+  document.getElementById("newRideBtn").style.display = "inline-block";
+  stopRouteTracking();
+  releaseWakeLock();
+}
+
+async function cancelRide() {
+  if (!ride) return;
+  currentRideStatus = "cancelado";
+  localStorage.removeItem("motoya_active_ride");
+  stopRouteTracking();
+  releaseWakeLock();
+  await fetch(API + `/api/rides/${ride.id}/cancel`, { method: "POST" });
+  document.getElementById("statusText").textContent = "Viaje cancelado.";
+  document.getElementById("connWarning").style.display = "none";
+  document.getElementById("chatBox").style.display = "none";
+  document.getElementById("shareBtn").style.display = "none";
+  document.getElementById("cancelBtn").style.display = "none";
+  document.getElementById("newRideBtn").style.display = "inline-block";
+}
+
+async function restoreActiveRide() {
+  const savedId = localStorage.getItem("motoya_active_ride");
+  if (!savedId) return;
+
+  let fetched;
+  try {
+    const res = await fetch(API + `/api/rides/${savedId}`);
+    if (!res.ok) { localStorage.removeItem("motoya_active_ride"); return; }
+    fetched = await res.json();
+  } catch {
+    return; // sin conexión ahorita; se reintenta la próxima vez que abra la app
+  }
+
+  if (["completado", "cancelado"].includes(fetched.status)) {
+    localStorage.removeItem("motoya_active_ride");
+    return;
+  }
+
+  ride = fetched;
+  pickup = { lat: fetched.pickup_lat, lng: fetched.pickup_lng };
+  dest = fetched.dest_lat != null ? { lat: fetched.dest_lat, lng: fetched.dest_lng } : null;
+  passengers = fetched.passengers || 1;
+  serviceType = fetched.ride_type === "taxi" ? "taxi" : "moto";
+  currentRideStatus = fetched.status;
+
+  document.getElementById("form").classList.remove("active");
+  document.getElementById("status").classList.add("active");
+
+  statusMap = L.map("statusMap").setView([pickup.lat, pickup.lng], 15);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(statusMap);
+  L.marker([pickup.lat, pickup.lng], { icon: numberedIcon(1, "#f6a623") }).addTo(statusMap);
+  if (dest) L.marker([dest.lat, dest.lng], { icon: numberedIcon(2, "#3498db") }).addTo(statusMap);
+
+  if (fetched.driver) {
+    onDriverAssigned(fetched.driver);
+    if (fetched.status === "llegue") onDriverArrived();
+    if (fetched.status === "en_curso") onTripStarted();
+  }
+
+  connectWs();
+  requestWakeLock();
+}
+
+restoreActiveRide();
+</script>
+</body>
+</html>
