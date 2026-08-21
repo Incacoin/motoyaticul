@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MotoYaTicul — Para negocios</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%B5%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  body { padding-bottom: 40px; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 28px 20px; }
+  .hero { text-align: center; padding: 8px 0 30px; }
+  .hero .brand { font-size: 30px; margin-bottom: 10px; }
+  .hero h1 { font-size: 22px; margin: 0 0 10px; line-height: 1.35; }
+  .hero p { color: var(--text-dim); font-size: 15px; margin: 0; }
+  section { margin-bottom: 34px; }
+  section h2 { color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 14px; }
+  .card { padding: 18px; margin-bottom: 12px; }
+  .card .t { font-weight: 700; font-size: 15.5px; margin-bottom: 5px; }
+  .card .d { color: var(--text-dim); font-size: 14px; line-height: 1.5; }
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step .n { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 800; font-size: 13.5px; display: flex; align-items: center; justify-content: center; }
+  .step .txt { padding-top: 4px; font-size: 14.5px; color: var(--text); }
+  .highlight { background: var(--bg-card); border: 1px solid rgba(246,166,35,0.35); border-radius: var(--radius-lg); padding: 20px; text-align: center; }
+  .highlight .big { font-size: 17px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .highlight p { color: var(--text-dim); font-size: 14px; margin: 0; }
+  .price-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .price-row:last-child { border-bottom: none; }
+  .price-row .label { font-size: 14.5px; }
+  .price-row .value { font-weight: 700; }
+  .value.free { color: var(--success); }
+  .split { display: flex; gap: 10px; }
+  .split .card { flex: 1; padding: 14px; margin-bottom: 0; text-align: center; }
+  .split .card .who { font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
+  .split .card .what { font-size: 14px; font-weight: 700; }
+  .links a { display: block; text-align: center; padding: 14px; margin-bottom: 10px; border-radius: var(--radius-sm); background: var(--bg-card); border: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 15px; font-weight: 600; }
+  .links a:active { background: var(--bg-card-hover); }
+  .cta { margin-top: 10px; }
+  .cta .btn { width: 100%; display: block; text-align: center; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</div>
+    <h1>Tu repartidor de emergencia, listo en la calle</h1>
+    <p>Para cuando el pedido ya está listo y no tienes quién lo lleve.</p>
+  </div>
+
+  <section>
+    <h2>El problema que resuelve</h2>
+    <div class="card">
+      <div class="d">Tu repartidor no llegó, salió a otra entrega, o de plano no tienes uno hoy — y el pedido ya está empacado esperando. MotoYaTicul te pone un mototaxi disponible en minutos, sin contratar a nadie ni depender de una sola persona.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cómo funciona</h2>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div class="txt">Abres MotoYaTicul como pasajero: marcas tu negocio como origen y la dirección del cliente como destino.</div></div>
+      <div class="step"><div class="n">2</div><div class="txt">El chofer disponible más cercano recibe el aviso y llega por el pedido.</div></div>
+      <div class="step"><div class="n">3</div><div class="txt">Recoge en tu mostrador y sigue la ruta directo a la dirección del cliente.</div></div>
+      <div class="step"><div class="n">4</div><div class="txt">Entrega el pedido — listo, sin que tú tengas que moverte del negocio.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>¿Quién le paga a quién?</h2>
+    <div class="split">
+      <div class="card">
+        <div class="who">Tu cliente → tu negocio</div>
+        <div class="what">Paga el pedido como ya lo hace hoy (transferencia, efectivo, etc.)</div>
+      </div>
+      <div class="card">
+        <div class="who">Tu cliente → el chofer</div>
+        <div class="what">Paga el envío en efectivo al recibir</div>
+      </div>
+    </div>
+    <div class="card fade-in" style="margin-top:12px;">
+      <div class="d">Tú nunca tocas el dinero del envío — el negocio cobra lo suyo y listo. La tarifa del chofer es fija ($15 MXN si es cerca, $20 MXN si está más lejos), sin regateo.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>No es una app aparte que tengas que "unirte"</h2>
+    <div class="highlight">
+      <div class="big">Sin catálogo, sin registro, sin cuota</div>
+      <p>No necesitas dar de alta tu negocio ni subir tu menú a ningún lado. Es la misma app que ya usan los pasajeros de Ticul — solo la abres cuando te haga falta un mototaxi para llevar un pedido, como pedir uno para ti mismo.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Costo</h2>
+    <div class="card">
+      <div class="price-row">
+        <span class="label">Para tu negocio</span>
+        <span class="value free">Gratis, siempre</span>
+      </div>
+      <div class="price-row">
+        <span class="label">Envío que paga el cliente</span>
+        <span class="value">$15–$20 MXN</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Pruébala ahora mismo</h2>
+    <div class="links">
+      <a href="pasajero.html" target="_blank">Pedir un mototaxi de prueba</a>
+    </div>
+  </section>
+
+  <div class="cta">
+    <a class="btn" href="https://api.whatsapp.com/send?phone=529971005145&text=Hola%2C%20tengo%20un%20negocio%20y%20me%20gustar%C3%ADa%20saber%20m%C3%A1s%20de%20MotoYaTicul%20para%20env%C3%ADos">Hablemos por WhatsApp</a>
+  </div>
+
+  <div class="credit" style="margin-top:30px;">⚡ Tecnología de <strong>Lealtad Digital</strong></div>
+
+</div>
+
+</body>
+</html>
