@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>MotoYaTicul — Quiero ser chofer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%BA%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .wrap { width: 100%; max-width: 380px; }
+  .lead { text-align: center; color: var(--text-dim); font-size: 14.5px; line-height: 1.55; margin: 10px 0 26px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field label { font-size: 13px; color: var(--text-dim); }
+  .field input { width: 100%; }
+  .phoneRow { display: flex; gap: 8px; align-items: center; }
+  .phoneRow .prefix { padding: 13px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 16px; }
+  .phoneRow input { flex: 1; }
+  .fieldHint { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; margin: 0 0 8px; }
+  #photoPreview { display: none; width: 100%; max-height: 220px; object-fit: cover; border-radius: var(--radius-sm); margin-top: 10px; border: 1px solid var(--border); }
+  #err { color: var(--danger); min-height: 18px; font-size: 13.5px; margin-top: 4px; }
+  .legalCheck { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; cursor: pointer; }
+  .legalCheck input { margin-top: 3px; flex-shrink: 0; }
+  .legalCheck a { color: var(--accent); }
+  #okScreen { display: none; padding: 26px 20px; text-align: center; }
+  #okScreen .big { font-size: 38px; }
+  #okScreen h2 { color: var(--accent); font-size: 19px; margin: 10px 0 6px; }
+  #okScreen p { color: var(--text-dim); font-size: 14px; line-height: 1.5; margin: 0; }
+  .credit { margin-top: 22px; }
+  button.btn { width: 100%; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div id="formScreen">
+    <p class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</p>
+    <p class="lead">Regístrate como conductor y empieza a recibir viajes en Ticul. Déjanos tu nombre y teléfono — te contactamos por WhatsApp para completar tu alta y darte tu PIN.</p>
+
+    <div class="field">
+      <label>Nombre completo</label>
+      <input id="name" placeholder="Tu nombre" />
+    </div>
+    <div class="field">
+      <label>Teléfono (WhatsApp)</label>
+      <div class="phoneRow">
+        <span class="prefix">+52</span>
+        <input id="phone" placeholder="10 dígitos" inputmode="numeric" maxlength="10" oninput="this.value = this.value.replace(/\D/g, '')" />
+      </div>
+    </div>
+    <div class="field">
+      <label>¿Con qué vehículo trabajas?</label>
+      <select id="vehicleType">
+        <option value="moto">🛵 Moto (viajes cortos)</option>
+        <option value="taxi">🚕 Taxi / carro (viajes largos)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Foto contigo y tu vehículo</label>
+      <p class="fieldHint">Así verificamos que eres un chofer real y evitamos perfiles falsos.</p>
+      <input type="file" id="photo" accept="image/*" capture="environment" onchange="handlePhoto(event)" />
+      <img id="photoPreview" />
+    </div>
+    <div class="field legalField">
+      <label class="legalCheck">
+        <input type="checkbox" id="acceptLegal" />
+        He leído y acepto el <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso Legal de MotoYaTicul</a>. Entiendo que opero como conductor independiente, bajo mi propia responsabilidad.
+      </label>
+    </div>
+    <button class="btn" onclick="submitApplication()">Quiero ser chofer</button>
+    <div id="err"></div>
+  </div>
+
+  <div id="okScreen" class="card">
+    <div class="big">✅</div>
+    <h2>¡Listo, <span id="okName"></span>!</h2>
+    <p>Te vamos a escribir por WhatsApp al número que dejaste para completar tu registro y darte tu PIN de acceso.</p>
+  </div>
+
+  <p class="credit">⚡ Tecnología de <strong>Lealtad Digital</strong></p>
+</div>
+
+<script>
+let photoDataUrl = "";
+
+function handlePhoto(event) {
+  const file = event.target.files[0];
+  const err = document.getElementById("err");
+  err.textContent = "";
+  if (!file) {
+    photoDataUrl = "";
+    return;
+  }
+
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = (e) => { img.src = e.target.result; };
+  reader.onerror = () => { err.textContent = "No se pudo leer la foto, intenta de nuevo"; };
+  img.onload = () => {
+    let { width, height } = img;
+    const maxDim = 900;
+    if (width > height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+    else if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+    photoDataUrl = canvas.toDataURL("image/jpeg", 0.72);
+
+    const preview = document.getElementById("photoPreview");
+    preview.src = photoDataUrl;
+    preview.style.display = "block";
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitApplication() {
+  const name = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const err = document.getElementById("err");
+  err.textContent = "";
+
+  if (!name || !phone) {
+    err.textContent = "Escribe tu nombre y teléfono";
+    return;
+  }
+  if (phone.length !== 10) {
+    err.textContent = "El teléfono debe tener 10 dígitos";
+    return;
+  }
+  if (!photoDataUrl) {
+    err.textContent = "Tómate una foto contigo y tu moto";
+    return;
+  }
+  if (!document.getElementById("acceptLegal").checked) {
+    err.textContent = "Debes aceptar el aviso legal para continuar";
+    return;
+  }
+
+  const vehicleType = document.getElementById("vehicleType").value;
+  const res = await fetch("/api/chofer-solicitudes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, phone, photo: photoDataUrl, acceptedLegal: true, vehicleType }),
+  });
+  if (!res.ok) {
+    err.textContent = "No se pudo enviar, intenta de nuevo";
+    return;
+  }
+
+  document.getElementById("okName").textContent = name;
+  document.getElementById("formScreen").style.display = "none";
+  document.getElementById("okScreen").style.display = "block";
+}
+</script>
+</body>
+</html>
