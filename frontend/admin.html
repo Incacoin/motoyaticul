@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MotoYaTicul Admin</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%B5%3C/text%3E%3C/svg%3E" />
+<link rel="manifest" href="manifest-admin.json" />
+<meta name="theme-color" content="#f6a623" />
+<link rel="apple-touch-icon" href="icons/icon-512.png" />
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+<link rel="stylesheet" href="style.css" />
+<style>
+  .screen { display: none; flex-direction: column; min-height: 100vh; }
+  .screen.active { display: flex; }
+  #login { align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
+  #login input { width: 200px; text-align: center; letter-spacing: 4px; }
+  #err { color: var(--danger); min-height: 18px; font-size: 14px; }
+  #app { padding: 28px 20px 60px; max-width: 680px; margin: 0 auto; width: 100%; }
+  #app h1 { color: var(--accent); font-size: 22px; margin: 0 0 4px; }
+  #app .section-hint { color: var(--text-dim); font-size: 14px; margin: 0 0 18px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field label { font-size: 13px; color: var(--text-dim); }
+  #err2 { color: var(--danger); min-height: 18px; font-size: 14px; margin-top: 6px; }
+  #newPinCard { display: none; padding: 20px; margin: 18px 0; text-align: center; }
+  #newPinCard .pin { font-size: 42px; font-weight: 800; color: var(--accent); letter-spacing: 6px; margin: 10px 0; }
+  #newPinCard .sub { color: var(--text-dim); font-size: 13px; margin-bottom: 14px; }
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-md); }
+  .paidRow { display: flex; gap: 6px; align-items: center; }
+  .paidRow input[type="date"] { padding: 7px 8px; font-size: 13px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .vencido { color: var(--danger); font-size: 12px; margin-top: 3px; }
+  .al-corriente { color: var(--success); font-size: 12px; margin-top: 3px; }
+  .vouchRow { display: flex; gap: 6px; align-items: center; }
+  .vouchRow input[type="text"] { width: 110px; padding: 7px 8px; font-size: 13px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .sin-aval { color: var(--danger); font-size: 12px; margin-top: 3px; }
+  .avalado { color: var(--success); font-size: 12px; margin-top: 3px; }
+  .badge-tipo { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .badge-tipo.formal { background: rgba(46, 204, 113, 0.15); color: var(--success); }
+  .badge-tipo.informal { background: rgba(246, 166, 35, 0.15); color: var(--accent); }
+  select.tipo-select { padding: 7px 8px; font-size: 13px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .tipo-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tipo-tabs button { padding: 7px 14px; font-size: 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-dim); cursor: pointer; }
+  .tipo-tabs button.active { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+  .phoneRow { display: flex; gap: 8px; align-items: center; }
+  .phoneRow .prefix { padding: 13px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 16px; }
+  .phoneRow input { flex: 1; }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .legalCheck { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-dim); line-height: 1.5; cursor: pointer; }
+  .legalCheck input { margin-top: 3px; flex-shrink: 0; }
+  .legalCheck a { color: var(--accent); }
+  .pendingPhotoPreview { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .pendingPhotoPreview:empty { display: none; margin: 0; }
+  section + h1 { margin-top: 32px; }
+  #app h1.rides-title { margin-top: 32px; display: flex; align-items: center; gap: 10px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.18); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .dot.buscando { background: var(--text-faint); }
+  .dot.aceptado, .dot.llegue, .dot.en_curso { background: var(--accent); box-shadow: 0 0 0 3px rgba(246, 166, 35, 0.18); }
+  .dot.completado { background: var(--success); box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.18); }
+  .dot.cancelado { background: var(--danger); box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.18); }
+  .ago { color: var(--text-dim); font-size: 12px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 30px; }
+  .stat-tile { padding: 16px; }
+  .stat-tile .label { color: var(--text-dim); font-size: 12.5px; }
+  .stat-tile .value { font-size: 30px; font-weight: 700; color: var(--text); margin-top: 4px; }
+  .stat-tile.accent .value { color: var(--accent); }
+  .stat-tile.danger .value { color: var(--danger); }
+  .top-drivers { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; }
+  .top-driver-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
+  .top-driver-row .name { width: 108px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top-driver-bar-wrap { flex: 1; background: var(--bg-card); border-radius: 4px; height: 8px; overflow: hidden; }
+  .top-driver-bar { height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+  .top-driver-row .count { width: 22px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+  .app-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; margin-bottom: 8px; flex-wrap: wrap; }
+  .app-row .info { display: flex; align-items: center; gap: 10px; }
+  .thumb { width: 56px; height: 56px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; cursor: zoom-in; border: 1px solid var(--border); background: var(--bg-card); }
+  .app-row .who { display: flex; flex-direction: column; gap: 2px; }
+  .app-row .who .name { font-weight: 700; }
+  .app-row .who .meta { font-size: 12.5px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div id="login" class="screen active">
+  <div class="brand"><span class="brand-icon">🛵</span>MotoYaTicul Admin</div>
+  <input id="adminPin" inputmode="numeric" placeholder="PIN de admin" />
+  <button class="btn" onclick="login()">Entrar</button>
+  <div id="err"></div>
+</div>
+
+<div id="app" class="screen">
+  <h1>Resumen</h1>
+  <p class="section-hint">Últimos 7 días.</p>
+  <div class="stats-grid">
+    <div class="card stat-tile accent">
+      <div class="label">Viajes hoy</div>
+      <div class="value" id="statRidesToday">—</div>
+    </div>
+    <div class="card stat-tile accent">
+      <div class="label">Viajes esta semana</div>
+      <div class="value" id="statRidesWeek">—</div>
+    </div>
+    <div class="card stat-tile danger">
+      <div class="label">Cancelados hoy</div>
+      <div class="value" id="statCancelledToday">—</div>
+    </div>
+    <div class="card stat-tile">
+      <div class="label">Choferes conectados ahora</div>
+      <div class="value" id="statDriversOnline">—</div>
+    </div>
+    <div class="card stat-tile accent">
+      <div class="label">Satisfacción (viajes calificados)</div>
+      <div class="value" id="statSatisfaction">—</div>
+    </div>
+  </div>
+  <div id="topDriversWrap">
+    <p class="section-hint" style="margin-bottom:10px;">Choferes más activos (7 días)</p>
+    <div class="top-drivers" id="topDrivers"></div>
+  </div>
+
+  <h1>Solicitudes de chofer</h1>
+  <p class="section-hint">Gente que se registró desde el QR de "Quiero ser chofer".</p>
+  <div id="applicationsList"></div>
+
+  <h1>Dar de alta un chofer</h1>
+  <p class="section-hint">Genera su PIN y envíaselo directo por WhatsApp.</p>
+  <div class="field">
+    <label>Nombre</label>
+    <input id="driverName" placeholder="Nombre del chofer" />
+  </div>
+  <div class="field">
+    <label>Teléfono (WhatsApp)</label>
+    <div class="phoneRow">
+      <span class="prefix">+52</span>
+      <input id="driverPhone" placeholder="10 dígitos" inputmode="numeric" maxlength="10" oninput="this.value = this.value.replace(/\D/g, '')" />
+    </div>
+  </div>
+  <div class="field">
+    <label>Vehículo (opcional)</label>
+    <input id="driverVehicle" placeholder="Ej. Mototaxi rojo, placa ABC123" />
+  </div>
+  <div class="field">
+    <label>Tipo</label>
+    <select id="driverTipo" class="tipo-select">
+      <option value="informal">Informal (sin placa)</option>
+      <option value="formal">Formal (con placa/concesión)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Servicio</label>
+    <select id="driverVehicleType" class="tipo-select">
+      <option value="moto">🛵 Moto (viajes cortos)</option>
+      <option value="taxi">🚕 Taxi (viajes largos)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Foto (opcional)</label>
+    <input type="file" id="driverPhotoInput" accept="image/*" capture="environment" onchange="handleDriverPhoto(event)" />
+  </div>
+  <div id="pendingPhotoPreview" class="pendingPhotoPreview"></div>
+  <div class="field legalField">
+    <label class="legalCheck">
+      <input type="checkbox" id="driverAcceptedLegal" />
+      Le mostré y aceptó el <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso Legal de MotoYaTicul</a>
+    </label>
+  </div>
+  <button class="btn" onclick="registerDriver()">Registrar chofer</button>
+  <div id="err2"></div>
+
+  <div id="newPinCard" class="card fade-in">
+    <div>PIN para <strong id="newDriverName"></strong></div>
+    <div class="pin" id="newPin"></div>
+    <div class="sub">Compártele este PIN para que entre en chofer.html</div>
+    <button class="btn btn-sm wa" style="padding:12px 20px;font-size:15px;" onclick="sendLastWhatsapp()">Enviar por WhatsApp</button>
+  </div>
+
+  <h1>Choferes registrados</h1>
+  <div class="tipo-tabs" id="tipoTabs">
+    <button class="active" onclick="setTipoFilter('todos')">Todos</button>
+    <button onclick="setTipoFilter('informal')">Informales</button>
+    <button onclick="setTipoFilter('formal')">Formales</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Nombre</th><th>PIN</th><th>Teléfono</th><th>Tipo</th><th>Servicio</th><th>Estado</th><th>Inscrito</th><th>Vigente hasta</th><th>Aval sindicato</th><th></th></tr>
+      </thead>
+      <tbody id="driverRows"></tbody>
+    </table>
+  </div>
+
+  <h1 class="rides-title"><span class="live-dot"></span>Viajes en vivo</h1>
+  <p class="section-hint">Se actualiza solo cada 4 segundos. Últimos 50 viajes.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Pasajero</th><th>Servicio</th><th>Chofer</th><th>Origen</th><th>Destino</th><th>Pax</th><th>Estado</th><th>Actualizado</th></tr>
+      </thead>
+      <tbody id="rideRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API = "";
+let adminPin = null;
+let driversCache = [];
+let applicationsCache = [];
+let pendingDriverPhoto = null;
+let lastRegistered = null;
+let editingId = null;
+let ridesPollTimer = null;
+
+const RIDE_STATUS_LABEL = {
+  buscando: "Buscando chofer",
+  aceptado: "Aceptado",
+  llegue: "Chofer llegó",
+  en_curso: "En curso",
+  completado: "Completado",
+  cancelado: "Cancelado",
+};
+
+function timeAgo(sqliteUtc) {
+  if (!sqliteUtc) return "";
+  const ms = Date.now() - Date.parse(sqliteUtc.replace(" ", "T") + "Z");
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `hace ${s}s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `hace ${m}min`;
+  const h = Math.round(m / 60);
+  return `hace ${h}h`;
+}
+
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+function waLink(phone, text) {
+  const digits = phone.replace(/\D/g, "");
+  return `https://api.whatsapp.com/send?phone=52${digits}&text=${encodeURIComponent(text)}`;
+}
+
+function welcomeMessage(driver) {
+  const link = `${location.origin}/chofer.html`;
+  return `¡Hola ${driver.name}! Gracias por tu confianza en MotoYaTicul.\n\nTu PIN de acceso de chofer es: ${driver.pin}\nEntra aquí para empezar a recibir viajes: ${link}`;
+}
+
+function sendLastWhatsapp() {
+  if (!lastRegistered) return;
+  window.open(waLink(lastRegistered.phone, welcomeMessage(lastRegistered)), "_blank");
+}
+
+function sendWhatsappFor(id) {
+  const driver = driversCache.find((d) => d.id === id);
+  if (!driver) return;
+  window.open(waLink(driver.phone, welcomeMessage(driver)), "_blank");
+}
+
+async function login() {
+  adminPin = document.getElementById("adminPin").value.trim();
+  document.getElementById("err").textContent = "";
+  const res = await fetch(API + "/api/admin/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!res.ok) {
+    document.getElementById("err").textContent = "PIN incorrecto";
+    return;
+  }
+  document.getElementById("login").classList.remove("active");
+  document.getElementById("app").classList.add("active");
+  loadDrivers();
+  loadRides();
+  loadStats();
+  loadApplications();
+  clearInterval(ridesPollTimer);
+  ridesPollTimer = setInterval(() => { loadRides(); loadStats(); loadApplications(); }, 4000);
+}
+
+async function loadApplications() {
+  const res = await fetch(API + "/api/admin/chofer-solicitudes/list", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!res.ok) return;
+  applicationsCache = await res.json();
+  renderApplications(applicationsCache);
+}
+
+function renderApplications(apps) {
+  const wrap = document.getElementById("applicationsList");
+  wrap.innerHTML = apps.length
+    ? apps.map((a) => `
+      <div class="card app-row">
+        <div class="info">
+          ${a.photo ? `<img class="thumb" src="${a.photo}" onclick="window.open('${a.photo}', '_blank')" />` : ""}
+          <div class="who">
+            <span class="name">${a.name}</span>
+            <span class="meta">${a.phone} · ${timeAgo(a.created_at)} · ${vehicleTypeBadge(a.vehicle_type)}</span>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button class="btn-sm" onclick="useApplication(${a.id})">Usar datos</button>
+          <button class="btn-sm danger" onclick="dismissApplication(${a.id})">Descartar</button>
+        </div>
+      </div>`).join("")
+    : `<div class="ago">No hay solicitudes pendientes.</div>`;
+}
+
+function useApplication(id) {
+  const app = applicationsCache.find((a) => a.id === id);
+  if (!app) return;
+  document.getElementById("driverName").value = app.name;
+  document.getElementById("driverPhone").value = app.phone;
+  document.getElementById("driverVehicleType").value = app.vehicle_type === "taxi" ? "taxi" : "moto";
+  pendingDriverPhoto = app.photo || null;
+  renderPendingPhotoPreview();
+  document.getElementById("driverName").scrollIntoView({ behavior: "smooth", block: "center" });
+  dismissApplication(id, true);
+}
+
+function renderPendingPhotoPreview() {
+  const el = document.getElementById("pendingPhotoPreview");
+  el.innerHTML = pendingDriverPhoto
+    ? `<img class="thumb" src="${pendingDriverPhoto}" /> <span class="ago">Se guardará con este chofer</span>`
+    : "";
+}
+
+function handleDriverPhoto(event) {
+  const file = event.target.files[0];
+  const err = document.getElementById("err2");
+  err.textContent = "";
+  if (!file) return;
+
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = (e) => { img.src = e.target.result; };
+  reader.onerror = () => { err.textContent = "No se pudo leer la foto, intenta de nuevo"; };
+  img.onload = () => {
+    let { width, height } = img;
+    const maxDim = 900;
+    if (width > height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+    else if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+    pendingDriverPhoto = canvas.toDataURL("image/jpeg", 0.72);
+    renderPendingPhotoPreview();
+  };
+  reader.readAsDataURL(file);
+}
+
+async function dismissApplication(id, silent) {
+  await fetch(API + `/api/admin/chofer-solicitudes/${id}/dismiss`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!silent) showToast("Solicitud descartada");
+  loadApplications();
+}
+
+async function loadStats() {
+  const res = await fetch(API + "/api/admin/stats", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!res.ok) return;
+  const s = await res.json();
+  document.getElementById("statRidesToday").textContent = s.ridesToday;
+  document.getElementById("statRidesWeek").textContent = s.ridesWeek;
+  document.getElementById("statCancelledToday").textContent = s.cancelledToday;
+  document.getElementById("statDriversOnline").textContent = s.driversOnline;
+  document.getElementById("statSatisfaction").textContent =
+    s.satisfactionPct === null ? "—" : `${s.satisfactionPct}% (${s.ratedCount})`;
+
+  const max = Math.max(1, ...s.topDrivers.map((d) => d.rides));
+  document.getElementById("topDrivers").innerHTML = s.topDrivers.length
+    ? s.topDrivers.map((d) => `
+      <div class="top-driver-row">
+        <span class="name">${d.name}</span>
+        <div class="top-driver-bar-wrap"><div class="top-driver-bar" style="width:${(d.rides / max) * 100}%"></div></div>
+        <span class="count">${d.rides}</span>
+      </div>`).join("")
+    : `<div class="ago">Todavía no hay viajes completados esta semana.</div>`;
+}
+
+async function registerDriver() {
+  const name = document.getElementById("driverName").value.trim();
+  const phone = document.getElementById("driverPhone").value.trim();
+  const vehicle = document.getElementById("driverVehicle").value.trim();
+  const tipo = document.getElementById("driverTipo").value;
+  const vehicleType = document.getElementById("driverVehicleType").value;
+  document.getElementById("err2").textContent = "";
+
+  if (!name || !phone) {
+    document.getElementById("err2").textContent = "Escribe nombre y teléfono";
+    return;
+  }
+  if (!document.getElementById("driverAcceptedLegal").checked) {
+    document.getElementById("err2").textContent = "Confirma que el chofer aceptó el aviso legal";
+    return;
+  }
+
+  const res = await fetch(API + "/api/admin/drivers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin, name, phone, vehicle, tipo, vehicleType, acceptedLegal: true, photo: pendingDriverPhoto }),
+  });
+  if (!res.ok) {
+    document.getElementById("err2").textContent = (await res.json()).error;
+    return;
+  }
+  const driver = await res.json();
+  lastRegistered = driver;
+
+  document.getElementById("newDriverName").textContent = driver.name;
+  document.getElementById("newPin").textContent = driver.pin;
+  document.getElementById("newPinCard").style.display = "block";
+
+  document.getElementById("driverName").value = "";
+  document.getElementById("driverPhone").value = "";
+  document.getElementById("driverVehicle").value = "";
+  document.getElementById("driverTipo").value = "informal";
+  document.getElementById("driverVehicleType").value = "moto";
+  document.getElementById("driverAcceptedLegal").checked = false;
+  document.getElementById("driverPhotoInput").value = "";
+  pendingDriverPhoto = null;
+  renderPendingPhotoPreview();
+
+  loadDrivers();
+}
+
+async function loadDrivers() {
+  const res = await fetch(API + "/api/admin/drivers/list", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  driversCache = await res.json();
+  renderDriverRows();
+}
+
+function startEdit(id) {
+  editingId = id;
+  renderDriverRows();
+}
+
+function cancelEdit() {
+  editingId = null;
+  renderDriverRows();
+}
+
+async function saveEdit(id) {
+  const name = document.getElementById(`edit-name-${id}`).value.trim();
+  const phone = document.getElementById(`edit-phone-${id}`).value.trim();
+  const vehicle = document.getElementById(`edit-vehicle-${id}`).value.trim();
+  const tipo = document.getElementById(`edit-tipo-${id}`).value;
+  const vehicleType = document.getElementById(`edit-vehicletype-${id}`).value;
+  if (!name || !phone) {
+    showToast("Escribe nombre y teléfono");
+    return;
+  }
+  const res = await fetch(API + `/api/admin/drivers/${id}/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin, name, phone, vehicle, tipo, vehicleType }),
+  });
+  if (!res.ok) {
+    showToast((await res.json()).error || "No se pudo guardar");
+    return;
+  }
+  editingId = null;
+  loadDrivers();
+}
+
+async function deleteDriver(id, name) {
+  if (!confirm(`¿Eliminar a ${name}? Su historial de viajes se conserva, pero esto no se puede deshacer.`)) return;
+  const res = await fetch(API + `/api/admin/drivers/${id}/delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!res.ok) {
+    showToast((await res.json()).error || "No se pudo eliminar");
+    return;
+  }
+  loadDrivers();
+}
+
+let tipoFilter = "todos";
+
+function setTipoFilter(tipo) {
+  tipoFilter = tipo;
+  document.querySelectorAll("#tipoTabs button").forEach((b, i) => {
+    b.classList.toggle("active", ["todos", "informal", "formal"][i] === tipo);
+  });
+  renderDriverRows();
+}
+
+function tipoBadge(tipo) {
+  const t = tipo === "formal" ? "formal" : "informal";
+  const label = t === "formal" ? "Formal" : "Informal";
+  return `<span class="badge-tipo ${t}">${label}</span>`;
+}
+
+function tipoSelect(id, tipo) {
+  const t = tipo === "formal" ? "formal" : "informal";
+  return `
+    <select id="edit-tipo-${id}" class="tipo-select">
+      <option value="informal" ${t === "informal" ? "selected" : ""}>Informal</option>
+      <option value="formal" ${t === "formal" ? "selected" : ""}>Formal</option>
+    </select>`;
+}
+
+function vehicleTypeBadge(vehicleType) {
+  const t = vehicleType === "taxi" ? "taxi" : "moto";
+  return t === "taxi" ? `<span class="badge-tipo formal">🚕 Taxi</span>` : `<span class="badge-tipo informal">🛵 Moto</span>`;
+}
+
+function vehicleTypeSelect(id, vehicleType) {
+  const t = vehicleType === "taxi" ? "taxi" : "moto";
+  return `
+    <select id="edit-vehicletype-${id}" class="tipo-select">
+      <option value="moto" ${t === "moto" ? "selected" : ""}>🛵 Moto</option>
+      <option value="taxi" ${t === "taxi" ? "selected" : ""}>🚕 Taxi</option>
+    </select>`;
+}
+
+function renderDriverRows() {
+  const rows = tipoFilter === "todos"
+    ? driversCache
+    : driversCache.filter((d) => (d.tipo || "informal") === tipoFilter);
+
+  document.getElementById("driverRows").innerHTML = rows.map((d) => {
+    if (editingId === d.id) {
+      return `
+      <tr>
+        <td><input id="edit-name-${d.id}" value="${d.name}" /></td>
+        <td>${d.pin}</td>
+        <td>
+          <div class="phoneRow">
+            <span class="prefix">+52</span>
+            <input id="edit-phone-${d.id}" value="${d.phone}" inputmode="numeric" maxlength="10" oninput="this.value = this.value.replace(/\\D/g, '')" />
+          </div>
+        </td>
+        <td>${tipoSelect(d.id, d.tipo)}</td>
+        <td>${vehicleTypeSelect(d.id, d.vehicle_type)}</td>
+        <td><span class="dot ${d.status}"></span>${d.status}</td>
+        <td>${d.created_at ? d.created_at.slice(0, 10) : ""}</td>
+        <td><input id="edit-vehicle-${d.id}" value="${d.vehicle || ""}" placeholder="Vehículo" /></td>
+        <td>${d.vouched_by ? `<div class="avalado">${d.vouched_by}</div>` : `<div class="sin-aval">sin aval</div>`}</td>
+        <td class="row-actions">
+          <button class="btn-sm" onclick="saveEdit(${d.id})">Guardar</button>
+          <button class="btn-sm" onclick="cancelEdit()">Cancelar</button>
+        </td>
+      </tr>`;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const vencido = d.paid_until && d.paid_until < today;
+    const statusLabel = d.paid_until
+      ? `<div class="${vencido ? "vencido" : "al-corriente"}">${vencido ? "vencido" : "al corriente"}</div>`
+      : "";
+    const vouchLabel = d.vouched_by
+      ? `<div class="avalado">avalado ${d.vouched_at ? "el " + d.vouched_at : ""}</div>`
+      : `<div class="sin-aval">sin aval</div>`;
+    const nameCell = d.photo
+      ? `<div class="info"><img class="thumb" src="${d.photo}" onclick="window.open('${d.photo}', '_blank')" /><span>${d.name}</span></div>`
+      : d.name;
+    return `
+    <tr>
+      <td>${nameCell}</td>
+      <td>${d.pin}</td>
+      <td>${d.phone}</td>
+      <td>${tipoBadge(d.tipo)}</td>
+      <td>${vehicleTypeBadge(d.vehicle_type)}</td>
+      <td><span class="dot ${d.status}"></span>${d.status}</td>
+      <td>${d.created_at ? d.created_at.slice(0, 10) : ""}</td>
+      <td>
+        <div class="paidRow">
+          <input type="date" id="paid-${d.id}" value="${d.paid_until || ""}" />
+          <button class="btn-sm" onclick="savePaidUntil(${d.id})">Guardar</button>
+        </div>
+        ${statusLabel}
+      </td>
+      <td>
+        <div class="vouchRow">
+          <input type="text" id="vouch-${d.id}" value="${d.vouched_by || ""}" placeholder="Nombre del líder" />
+          <button class="btn-sm" onclick="saveVouch(${d.id})">Guardar</button>
+        </div>
+        ${vouchLabel}
+      </td>
+      <td class="row-actions">
+        <button class="btn-sm wa" onclick="sendWhatsappFor(${d.id})">WhatsApp</button>
+        <button class="btn-sm" onclick="startEdit(${d.id})">Editar</button>
+        <button class="btn-sm danger" onclick="deleteDriver(${d.id}, '${d.name.replace(/'/g, "\\'")}')">Eliminar</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+async function loadRides() {
+  const res = await fetch(API + "/api/admin/rides/list", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!res.ok) return;
+  renderRideRows(await res.json());
+}
+
+function renderRideRows(rides) {
+  document.getElementById("rideRows").innerHTML = rides.map((r) => {
+    const disconnected = r.driver_disconnected_at
+      ? `<br><span class="ago" style="color:var(--danger);">⚠ desconectado ${timeAgo(r.driver_disconnected_at)}</span>`
+      : "";
+    const rating = r.rating === 1 ? " 👍" : r.rating === 0 ? " 👎" : "";
+    return `
+    <tr>
+      <td>${r.rider_name}<br><span class="ago">${r.rider_phone}</span></td>
+      <td>${vehicleTypeBadge(r.ride_type)}</td>
+      <td>${r.driver_name || "—"}${disconnected}</td>
+      <td>${r.pickup_label || "—"}</td>
+      <td>${r.dest_label || "—"}</td>
+      <td>${r.passengers}</td>
+      <td><span class="dot ${r.status}"></span>${RIDE_STATUS_LABEL[r.status] || r.status}${rating}</td>
+      <td class="ago">${timeAgo(r.updated_at)}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="7" class="ago">Sin viajes todavía.</td></tr>`;
+}
+
+async function savePaidUntil(id) {
+  const paidUntil = document.getElementById(`paid-${id}`).value;
+  await fetch(API + `/api/admin/drivers/${id}/paid-until`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin, paidUntil }),
+  });
+  loadDrivers();
+}
+
+async function saveVouch(id) {
+  const vouchedBy = document.getElementById(`vouch-${id}`).value.trim();
+  await fetch(API + `/api/admin/drivers/${id}/vouch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin, vouchedBy }),
+  });
+  showToast(vouchedBy ? "Aval guardado" : "Aval quitado");
+  loadDrivers();
+}
+</script>
+</body>
+</html>
