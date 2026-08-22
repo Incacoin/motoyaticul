@@ -10,6 +10,9 @@ const rideSubscribers = new Map();
 const disconnectTimers = new Map();
 // rideId -> Timeout (cuenta regresiva de "nadie ha aceptado el viaje")
 const noDriverTimers = new Map();
+// rideId -> driverId: quién le escribió al pasajero antes de aceptar el viaje
+// (para poder enrutar su respuesta), se limpia al aceptar/cancelar/completar.
+const preAcceptContact = new Map();
 
 // Ventana de gracia antes de avisarle al pasajero que el chofer no vuelve.
 // Cubre un parpadeo normal de señal (el chofer reconecta solo, en ~2s) sin
@@ -140,9 +143,24 @@ function attach(httpServer) {
             driverId
           );
         } else if (msg.type === "chat" && typeof msg.text === "string" && msg.text.trim()) {
-          const ride = activeRideForDriver(driverId);
-          if (ride) {
-            notifyRide(ride.id, "chat", { text: msg.text.trim().slice(0, 300) });
+          const text = msg.text.trim().slice(0, 300);
+          if (msg.rideId) {
+            // Mensaje a una solicitud pendiente (todavía no aceptada) desde
+            // la lista de viajes cercanos — validar que sigue disponible o
+            // que ya es del propio chofer, para no dejar escribirle a
+            // pasajeros de viajes de otros choferes.
+            const rideId = Number(msg.rideId);
+            const ride = db
+              .prepare("SELECT id, driver_id, status FROM rides WHERE id = ?")
+              .get(rideId);
+            if (!ride) return;
+            if (ride.driver_id && ride.driver_id !== driverId) return;
+            if (!["buscando", "aceptado", "llegue", "en_curso"].includes(ride.status)) return;
+            if (!ride.driver_id) preAcceptContact.set(rideId, driverId);
+            notifyRide(rideId, "chat", { text });
+          } else {
+            const ride = activeRideForDriver(driverId);
+            if (ride) notifyRide(ride.id, "chat", { text });
           }
         }
       });
@@ -181,8 +199,9 @@ function attach(httpServer) {
         }
         if (msg.type === "chat" && typeof msg.text === "string" && msg.text.trim()) {
           const current = db.prepare("SELECT driver_id FROM rides WHERE id = ?").get(rideId);
-          if (current && current.driver_id) {
-            notifyDriver(current.driver_id, "chat", { text: msg.text.trim().slice(0, 300) });
+          const targetDriverId = current?.driver_id || preAcceptContact.get(rideId);
+          if (targetDriverId) {
+            notifyDriver(targetDriverId, "chat", { text: msg.text.trim().slice(0, 300) });
           }
         }
       });
@@ -247,10 +266,15 @@ function clearDisconnectTimer(rideId) {
   }
 }
 
+function clearPreAcceptContact(rideId) {
+  preAcceptContact.delete(rideId);
+}
+
 module.exports = {
   attach,
   notifyRide,
   broadcastNewRide,
+  clearPreAcceptContact,
   broadcastRideTaken,
   broadcastRideRemoved,
   notifyDriver,
