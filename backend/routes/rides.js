@@ -161,28 +161,45 @@ router.post("/rides/:id/complete", (req, res) => {
   res.json({ ok: true, todayCount });
 });
 
+// Enfriamiento tras cancelación del chofer: si ya se había comprometido con un
+// pasajero (driver_id asignado) y él mismo cancela, no vuelve a recibir
+// solicitudes nuevas por unos minutos — le quita lo "gratis" a cancelar para
+// irse con alguien que lo paró en la calle. Cancelaciones del pasajero no cuentan.
+const DRIVER_CANCEL_COOLDOWN_MIN = 5;
+
 router.post("/rides/:id/cancel", (req, res) => {
   const rideId = Number(req.params.id);
+  const { cancelledBy, reason } = req.body || {};
   const ride = db.prepare("SELECT * FROM rides WHERE id = ?").get(rideId);
   if (!ride) return res.status(404).json({ error: "Viaje no encontrado" });
 
   db.prepare(
-    "UPDATE rides SET status = 'cancelado', updated_at = datetime('now'), driver_disconnected_at = NULL WHERE id = ?"
-  ).run(rideId);
+    "UPDATE rides SET status = 'cancelado', updated_at = datetime('now'), driver_disconnected_at = NULL, cancelled_by = ?, cancel_reason = ? WHERE id = ?"
+  ).run(cancelledBy || null, reason || null, rideId);
   realtime.clearDisconnectTimer(rideId);
   realtime.clearNoDriverTimer(rideId);
 
+  let cooldownUntil = null;
   if (ride.driver_id) {
-    db.prepare("UPDATE drivers SET status = 'disponible' WHERE id = ?").run(
-      ride.driver_id
-    );
+    if (cancelledBy === "driver") {
+      cooldownUntil = db
+        .prepare(`SELECT datetime('now', '+${DRIVER_CANCEL_COOLDOWN_MIN} minutes') AS cu`)
+        .get().cu;
+      db.prepare(
+        "UPDATE drivers SET status = 'disponible', cancel_count = cancel_count + 1, cooldown_until = ? WHERE id = ?"
+      ).run(cooldownUntil, ride.driver_id);
+    } else {
+      db.prepare("UPDATE drivers SET status = 'disponible' WHERE id = ?").run(
+        ride.driver_id
+      );
+    }
     realtime.notifyDriver(ride.driver_id, "ride_cancelled", { rideId });
   } else {
     realtime.broadcastRideRemoved(rideId);
   }
 
   realtime.notifyRide(rideId, "status_change", { status: "cancelado" });
-  res.json({ ok: true });
+  res.json({ ok: true, cooldownUntil });
 });
 
 router.post("/rides/:id/rate", (req, res) => {
