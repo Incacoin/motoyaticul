@@ -140,6 +140,10 @@
     <input id="driverVehicle" placeholder="Ej. Mototaxi rojo, placa ABC123" />
   </div>
   <div class="field">
+    <label>Agrupación (opcional)</label>
+    <input id="driverGrupo" placeholder="Ej. Jaguares" />
+  </div>
+  <div class="field">
     <label>Foto (opcional)</label>
     <input type="file" id="driverPhotoInput" accept="image/*" capture="environment" onchange="handleDriverPhoto(event)" />
   </div>
@@ -168,7 +172,7 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>Nombre</th><th>PIN</th><th>Teléfono</th><th>Tipo</th><th>Servicio</th><th>Estado</th><th>Inscrito</th><th>Vigente hasta</th><th>Aval sindicato</th><th></th></tr>
+        <tr><th>Nombre</th><th>PIN</th><th>Teléfono</th><th>Tipo</th><th>Servicio</th><th>Estado</th><th>Vehículo</th><th>Agrupación</th><th>Inscrito</th><th>Vigente hasta</th><th>Aval sindicato</th><th>Cancelaciones</th><th></th></tr>
       </thead>
       <tbody id="driverRows"></tbody>
     </table>
@@ -384,6 +388,7 @@ async function registerDriver() {
   const name = document.getElementById("driverName").value.trim();
   const phone = document.getElementById("driverPhone").value.trim();
   const vehicle = document.getElementById("driverVehicle").value.trim();
+  const grupo = document.getElementById("driverGrupo").value.trim();
   const tipo = "formal";
   const vehicleType = "moto";
   document.getElementById("err2").textContent = "";
@@ -400,7 +405,7 @@ async function registerDriver() {
   const res = await fetch(API + "/api/admin/drivers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ adminPin, name, phone, vehicle, tipo, vehicleType, acceptedLegal: true, photo: pendingDriverPhoto }),
+    body: JSON.stringify({ adminPin, name, phone, vehicle, grupo, tipo, vehicleType, acceptedLegal: true, photo: pendingDriverPhoto }),
   });
   if (!res.ok) {
     document.getElementById("err2").textContent = (await res.json()).error;
@@ -416,6 +421,7 @@ async function registerDriver() {
   document.getElementById("driverName").value = "";
   document.getElementById("driverPhone").value = "";
   document.getElementById("driverVehicle").value = "";
+  document.getElementById("driverGrupo").value = "";
   document.getElementById("driverAcceptedLegal").checked = false;
   document.getElementById("driverPhotoInput").value = "";
   pendingDriverPhoto = null;
@@ -448,6 +454,7 @@ async function saveEdit(id) {
   const name = document.getElementById(`edit-name-${id}`).value.trim();
   const phone = document.getElementById(`edit-phone-${id}`).value.trim();
   const vehicle = document.getElementById(`edit-vehicle-${id}`).value.trim();
+  const grupo = document.getElementById(`edit-grupo-${id}`).value.trim();
   const tipo = "formal";
   const vehicleType = "moto";
   if (!name || !phone) {
@@ -457,7 +464,7 @@ async function saveEdit(id) {
   const res = await fetch(API + `/api/admin/drivers/${id}/update`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ adminPin, name, phone, vehicle, tipo, vehicleType }),
+    body: JSON.stringify({ adminPin, name, phone, vehicle, grupo, tipo, vehicleType }),
   });
   if (!res.ok) {
     showToast((await res.json()).error || "No se pudo guardar");
@@ -497,6 +504,13 @@ function tipoBadge(tipo) {
   return `<span class="badge-tipo ${t}">${label}</span>`;
 }
 
+function cancelCountCell(d) {
+  const count = d.cancel_count || 0;
+  const cls = count >= 3 ? "vencido" : count > 0 ? "al-corriente" : "";
+  const cooling = d.cooldown_until && d.cooldown_until > new Date().toISOString();
+  return `<div class="${cls}">${count} cancelada${count === 1 ? "" : "s"}</div>${cooling ? `<div class="sin-aval">en enfriamiento</div>` : ""}`;
+}
+
 function vehicleTypeBadge(vehicleType) {
   const t = vehicleType === "taxi" ? "taxi" : "moto";
   return t === "taxi" ? `<span class="badge-tipo formal">🚕 Taxi</span>` : `<span class="badge-tipo informal">🛵 Moto</span>`;
@@ -522,9 +536,11 @@ function renderDriverRows() {
         <td>${tipoBadge(d.tipo)}</td>
         <td>${vehicleTypeBadge(d.vehicle_type)}</td>
         <td><span class="dot ${d.status}"></span>${d.status}</td>
-        <td>${d.created_at ? d.created_at.slice(0, 10) : ""}</td>
         <td><input id="edit-vehicle-${d.id}" value="${d.vehicle || ""}" placeholder="Vehículo" /></td>
+        <td><input id="edit-grupo-${d.id}" value="${d.grupo || ""}" placeholder="Agrupación" /></td>
+        <td>${d.created_at ? d.created_at.slice(0, 10) : ""}</td>
         <td>${d.vouched_by ? `<div class="avalado">${d.vouched_by}</div>` : `<div class="sin-aval">sin aval</div>`}</td>
+        <td>${cancelCountCell(d)}</td>
         <td class="row-actions">
           <button class="btn-sm" onclick="saveEdit(${d.id})">Guardar</button>
           <button class="btn-sm" onclick="cancelEdit()">Cancelar</button>
@@ -551,6 +567,8 @@ function renderDriverRows() {
       <td>${tipoBadge(d.tipo)}</td>
       <td>${vehicleTypeBadge(d.vehicle_type)}</td>
       <td><span class="dot ${d.status}"></span>${d.status}</td>
+      <td>${d.vehicle || "—"}</td>
+      <td>${d.grupo || "—"}</td>
       <td>${d.created_at ? d.created_at.slice(0, 10) : ""}</td>
       <td>
         <div class="paidRow">
@@ -566,6 +584,7 @@ function renderDriverRows() {
         </div>
         ${vouchLabel}
       </td>
+      <td>${cancelCountCell(d)}</td>
       <td class="row-actions">
         <button class="btn-sm wa" onclick="sendWhatsappFor(${d.id})">WhatsApp</button>
         <button class="btn-sm" onclick="startEdit(${d.id})">Editar</button>
@@ -591,6 +610,9 @@ function renderRideRows(rides) {
       ? `<br><span class="ago" style="color:var(--danger);">⚠ desconectado ${timeAgo(r.driver_disconnected_at)}</span>`
       : "";
     const rating = r.rating === 1 ? " 👍" : r.rating === 0 ? " 👎" : "";
+    const cancelNote = r.status === "cancelado" && r.cancelled_by
+      ? `<br><span class="ago">${r.cancelled_by === "driver" ? "canceló el chofer" : "canceló el pasajero"}${r.cancel_reason ? " · " + r.cancel_reason : ""}</span>`
+      : "";
     return `
     <tr>
       <td>${r.rider_name}<br><span class="ago">${r.rider_phone}</span></td>
@@ -599,7 +621,7 @@ function renderRideRows(rides) {
       <td>${r.pickup_label || "—"}</td>
       <td>${r.dest_label || "—"}</td>
       <td>${r.passengers}</td>
-      <td><span class="dot ${r.status}"></span>${RIDE_STATUS_LABEL[r.status] || r.status}${rating}</td>
+      <td><span class="dot ${r.status}"></span>${RIDE_STATUS_LABEL[r.status] || r.status}${rating}${cancelNote}</td>
       <td class="ago">${timeAgo(r.updated_at)}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="7" class="ago">Sin viajes todavía.</td></tr>`;
