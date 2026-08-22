@@ -131,6 +131,7 @@
     </div>
   </div>
   <button class="btn" id="newRideBtn" style="display:none;" onclick="location.reload()">Pedir otro viaje</button>
+  <button class="btn btn-secondary" id="reportBtn" style="display:none;" onclick="reportViaWhatsapp()">Quejas y sugerencias</button>
   <div class="credit">⚡ Tecnología de <strong>Lealtad Digital</strong> · <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso legal</a></div>
 </div>
 
@@ -263,9 +264,20 @@ function stopRouteTracking() {
   updateEtaDisplay(null);
 }
 
-const FARE_THRESHOLD_KM = 3;
+const FARE_SHORT_KM = 0.5;
+const FARE_SHORT = 10;
+const FARE_THRESHOLD_KM = 1.5;
 const FARE_NORMAL = 15;
-const FARE_FAR = 20;
+const SERVICE_FEE = 2;
+const NIGHT_FARE = 20;
+
+// Tarifa nocturna: 10pm a 6am, plana por persona (sin importar el tramo
+// corto/normal del día) — solo aplica dentro de 1.5km, los viajes largos
+// siempre se negocian directo con el chofer, de día o de noche.
+function isNightFare() {
+  const h = new Date().getHours();
+  return h >= 22 || h < 6;
+}
 
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -288,15 +300,21 @@ function updateFareEstimate() {
     el.textContent = "Viaje foráneo: acuerda el precio directo con el chofer";
     return;
   }
-  let pricePerPerson = FARE_NORMAL;
+  const night = isNightFare();
   let approx = true;
+  let pricePerPerson = night ? NIGHT_FARE : FARE_NORMAL;
   if (dest) {
     const tripKm = haversine(pickup.lat, pickup.lng, dest.lat, dest.lng);
-    pricePerPerson = tripKm > FARE_THRESHOLD_KM ? FARE_FAR : FARE_NORMAL;
     approx = false;
+    if (tripKm > FARE_THRESHOLD_KM) {
+      el.textContent = "Viaje largo: acuerda el precio directo con el chofer";
+      return;
+    }
+    pricePerPerson = night ? NIGHT_FARE : (tripKm > FARE_SHORT_KM ? FARE_NORMAL : FARE_SHORT);
   }
-  const total = pricePerPerson * passengers;
-  el.textContent = `Tarifa estimada: $${total} MXN (${passengers} pasajero${passengers > 1 ? "s" : ""})${approx ? " · aprox., marca destino para afinar" : ""}`;
+  const total = pricePerPerson * passengers + SERVICE_FEE;
+  const nightNote = night ? " · tarifa nocturna" : "";
+  el.textContent = `Tarifa estimada: $${total} MXN (${passengers} pasajero${passengers > 1 ? "s" : ""}, incluye $${SERVICE_FEE} de servicio)${nightNote}${approx ? " · aprox., marca destino para afinar" : ""}`;
 }
 
 function setServiceType(type) {
@@ -543,17 +561,29 @@ function connectWs() {
   };
 }
 
-function onDriverAssigned(driver) {
+const RANK_EMOJI = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+async function onDriverAssigned(driver) {
   currentRideStatus = "aceptado";
   document.getElementById("statusText").textContent = "¡Chofer en camino!";
   document.getElementById("cancelBtn").style.display = "none";
   const card = document.getElementById("driverCard");
   card.style.display = "block";
+  let badgeHtml = "";
+  try {
+    const res = await fetch(API + "/api/drivers/ranking");
+    const ranking = await res.json();
+    const mine = ranking.find((r) => r.id === driver.id);
+    if (mine) badgeHtml = `<div class="meta" style="color:var(--accent);font-weight:700;">${RANK_EMOJI[mine.rank]} Top chofer #${mine.rank}</div>`;
+  } catch {
+    // sin insignia si falla, no bloquea el resto del flujo
+  }
   card.innerHTML = `
     <div class="driverInfo">
       ${driver.photo ? `<img class="driverPhoto" src="${driver.photo}" onclick="openPhotoLightbox('${driver.photo}')" />` : `<div class="driverPhoto driverPhotoFallback">${serviceType === "taxi" ? "🚕" : "🛵"}</div>`}
       <div>
         <div class="name">${driver.name}</div>
+        ${badgeHtml}
         <div class="meta">${driver.vehicle || (serviceType === "taxi" ? "Taxi" : "Mototaxi")}</div>
         <div class="meta">Tel: ${driver.phone}</div>
       </div>
@@ -694,8 +724,25 @@ function onCancelledByDriver() {
   document.getElementById("shareBtn").style.display = "none";
   document.getElementById("cancelBtn").style.display = "none";
   document.getElementById("newRideBtn").style.display = "inline-block";
+  document.getElementById("reportBtn").style.display = "inline-block";
   stopRouteTracking();
   releaseWakeLock();
+}
+
+// Pendiente: reemplazar con el número real que dé el líder del gremio (solo
+// dígitos, sin "52" ni "+" — waLink() ya antepone el código de país, igual
+// que en admin.html).
+const QUEJAS_WHATSAPP_NUMBER = "";
+
+function waLink(phone, text) {
+  const digits = phone.replace(/\D/g, "");
+  return `https://api.whatsapp.com/send?phone=52${digits}&text=${encodeURIComponent(text)}`;
+}
+
+function reportViaWhatsapp() {
+  const rideInfo = ride ? ` (viaje #${ride.id})` : "";
+  const text = `Hola, quiero reportar un problema con mi viaje en MotoYaTicul${rideInfo}: `;
+  window.open(waLink(QUEJAS_WHATSAPP_NUMBER, text), "_blank");
 }
 
 async function cancelRide() {
@@ -704,7 +751,11 @@ async function cancelRide() {
   localStorage.removeItem("motoya_active_ride");
   stopRouteTracking();
   releaseWakeLock();
-  await fetch(API + `/api/rides/${ride.id}/cancel`, { method: "POST" });
+  await fetch(API + `/api/rides/${ride.id}/cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cancelledBy: "rider" }),
+  });
   document.getElementById("statusText").textContent = "Viaje cancelado.";
   document.getElementById("connWarning").style.display = "none";
   document.getElementById("chatBox").style.display = "none";
