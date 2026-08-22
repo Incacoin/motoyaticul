@@ -52,6 +52,9 @@
   .chat-msg.them { align-self: flex-start; background: var(--bg-card-hover); color: var(--text); }
   .chat-row { display: flex; gap: 6px; }
   .chat-row input { flex: 1; padding: 9px 10px; font-size: 14px; }
+  .cancel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: flex-end; justify-content: center; z-index: 500; }
+  .cancel-sheet { width: 100%; max-width: 420px; margin: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .cancel-sheet .label { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
 </style>
 </head>
 <body>
@@ -74,6 +77,7 @@
   <div id="topbar">
     <div>
       <div class="name" id="driverName"></div>
+      <div id="rankBadge" style="display:none;font-size:12.5px;font-weight:700;color:var(--accent);"></div>
       <div id="statusText" style="font-size:13px;color:var(--text-dim);">Desconectado</div>
       <div id="todayCountText" style="font-size:12px;color:var(--text-faint);"></div>
     </div>
@@ -100,6 +104,16 @@
 </div>
 
 <div id="toast" class="toast"></div>
+
+<div id="cancelReasonOverlay" class="cancel-overlay">
+  <div class="card cancel-sheet">
+    <div class="label">¿Por qué cancelas este viaje?</div>
+    <button class="btn-secondary" onclick="confirmCancel('El pasajero no llegó')">El pasajero no llegó</button>
+    <button class="btn-secondary" onclick="confirmCancel('Cambié de planes')">Cambié de planes</button>
+    <button class="btn-secondary" onclick="confirmCancel('Otro motivo')">Otro motivo</button>
+    <button class="btn-sm" onclick="closeCancelOverlay()">Ya no, seguir con el viaje</button>
+  </div>
+</div>
 
 <script>
 const API = "";
@@ -235,24 +249,37 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-const FARE_THRESHOLD_KM = 3;
+const FARE_SHORT_KM = 0.5;
+const FARE_SHORT = 10;
+const FARE_THRESHOLD_KM = 1.5;
 const FARE_NORMAL = 15;
-const FARE_FAR = 20;
+const SERVICE_FEE = 2;
+const NIGHT_FARE = 20;
+
+function isNightFare() {
+  const h = new Date().getHours();
+  return h >= 22 || h < 6;
+}
 
 function estimateFare(ride) {
   const passengers = ride.passengers || 1;
   if (ride.ride_type === "taxi") {
     return `Viaje foráneo · acuerda el precio con el pasajero · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
   }
-  let pricePerPerson = FARE_NORMAL;
+  const night = isNightFare();
+  let pricePerPerson = night ? NIGHT_FARE : FARE_NORMAL;
   let approx = true;
   if (ride.dest_lat) {
     const tripKm = haversine(ride.pickup_lat, ride.pickup_lng, ride.dest_lat, ride.dest_lng);
-    pricePerPerson = tripKm > FARE_THRESHOLD_KM ? FARE_FAR : FARE_NORMAL;
     approx = false;
+    if (tripKm > FARE_THRESHOLD_KM) {
+      return `Viaje largo · acuerda el precio con el pasajero · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
+    }
+    pricePerPerson = night ? NIGHT_FARE : (tripKm > FARE_SHORT_KM ? FARE_NORMAL : FARE_SHORT);
   }
-  const total = pricePerPerson * passengers;
-  return `$${total} MXN · ${passengers} pasajero${passengers > 1 ? "s" : ""}${approx ? " (aprox.)" : ""}`;
+  const total = pricePerPerson * passengers + SERVICE_FEE;
+  const nightNote = night ? " · nocturna" : "";
+  return `$${total} MXN (incl. $${SERVICE_FEE} servicio)${nightNote} · ${passengers} pasajero${passengers > 1 ? "s" : ""}${approx ? " (aprox.)" : ""}`;
 }
 
 async function login() {
@@ -291,6 +318,8 @@ function startApp() {
   document.getElementById("driverName").textContent = driver.name;
   document.getElementById("driverName").textContent += driver.vehicle_type === "taxi" ? " · 🚕 Taxi" : " · 🛵 Moto";
   document.getElementById("todayCountText").textContent = `Viajes hoy: ${todayCount}`;
+  if (driver.cooldown_until) applyCooldown(driver.cooldown_until);
+  refreshRankBadge();
 
   map = L.map("map").setView([20.2098, -89.4620], 14); // Ticul aprox
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -404,6 +433,10 @@ function watchLocation() {
 
 function toggleAvailable() {
   if (currentRide) return; // no se puede cambiar mientras hay viaje activo
+  if (cooldownUntilMs && Date.now() < cooldownUntilMs) {
+    showToast("Espera a que termine el enfriamiento por cancelación");
+    return;
+  }
   available = !available;
   const sw = document.getElementById("switch");
   sw.classList.toggle("on", available);
@@ -771,20 +804,92 @@ async function completeRide() {
   hideChat();
   showToast("Viaje completado ✅");
   renderRideList();
+  refreshRankBadge();
 }
 
-async function cancelCurrentRide() {
+const RANK_EMOJI = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+async function refreshRankBadge() {
+  try {
+    const res = await fetch(API + "/api/drivers/ranking");
+    const ranking = await res.json();
+    const mine = ranking.find((r) => r.id === driver.id);
+    const el = document.getElementById("rankBadge");
+    if (mine) {
+      el.textContent = `${RANK_EMOJI[mine.rank]} Top chofer #${mine.rank} · ${mine.ratingPct}%`;
+      el.style.display = "block";
+    } else {
+      el.style.display = "none";
+    }
+  } catch {
+    // sin insignia si falla, no bloquea el resto de la app
+  }
+}
+
+function cancelCurrentRide() {
   if (!currentRide) return;
-  if (!confirm("¿Cancelar este viaje? Úsalo si el pasajero no se presentó o algo salió mal.")) return;
+  document.getElementById("cancelReasonOverlay").style.display = "flex";
+}
+
+function closeCancelOverlay() {
+  document.getElementById("cancelReasonOverlay").style.display = "none";
+}
+
+async function confirmCancel(reason) {
+  closeCancelOverlay();
+  if (!currentRide) return;
   cancellingOwnRide = true;
   const rideId = currentRide.id;
-  await fetch(API + `/api/rides/${rideId}/cancel`, { method: "POST" });
+  const res = await fetch(API + `/api/rides/${rideId}/cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cancelledBy: "driver", reason }),
+  });
+  const data = await res.json().catch(() => ({}));
   currentRide = null;
   stopRouteTracking();
   hideChat();
   cancellingOwnRide = false;
-  showToast("Viaje cancelado");
+  if (data.cooldownUntil) {
+    applyCooldown(data.cooldownUntil);
+    showToast("Viaje cancelado · sin solicitudes nuevas por unos minutos");
+  } else {
+    showToast("Viaje cancelado");
+  }
   renderRideList();
+}
+
+// El campo "cooldown_until" viene de SQLite en UTC sin sufijo de zona
+// ("YYYY-MM-DD HH:MM:SS"); sin el "Z" el navegador lo interpreta como hora
+// local y el enfriamiento se calcula mal según el huso horario del chofer.
+function parseSqliteUtc(str) {
+  return new Date(str.replace(" ", "T") + "Z");
+}
+
+let cooldownUntilMs = 0;
+let cooldownInterval = null;
+
+function applyCooldown(cooldownUntilStr) {
+  const ms = parseSqliteUtc(cooldownUntilStr).getTime();
+  if (ms <= Date.now()) return;
+  cooldownUntilMs = ms;
+  updateCooldownDisplay();
+  clearInterval(cooldownInterval);
+  cooldownInterval = setInterval(updateCooldownDisplay, 1000);
+}
+
+function updateCooldownDisplay() {
+  const remainingMs = cooldownUntilMs - Date.now();
+  if (remainingMs <= 0) {
+    clearInterval(cooldownInterval);
+    cooldownInterval = null;
+    cooldownUntilMs = 0;
+    document.getElementById("statusText").textContent = available ? "Disponible" : "Desconectado";
+    return;
+  }
+  const mins = Math.floor(remainingMs / 60000);
+  const secs = Math.floor((remainingMs % 60000) / 1000);
+  document.getElementById("statusText").textContent = `En enfriamiento · ${mins}:${String(secs).padStart(2, "0")}`;
 }
 
 // Auto-login si ya había sesión
