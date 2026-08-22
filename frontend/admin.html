@@ -144,6 +144,13 @@
     <input id="driverGrupo" placeholder="Ej. Jaguares" />
   </div>
   <div class="field">
+    <label>Servicio</label>
+    <select id="driverVehicleType" class="tipo-select">
+      <option value="moto">🛵 Moto (viajes cortos)</option>
+      <option value="taxi">🚕 Taxi (viajes largos)</option>
+    </select>
+  </div>
+  <div class="field">
     <label>Foto (opcional)</label>
     <input type="file" id="driverPhotoInput" accept="image/*" capture="environment" onchange="handleDriverPhoto(event)" />
   </div>
@@ -390,7 +397,7 @@ async function registerDriver() {
   const vehicle = document.getElementById("driverVehicle").value.trim();
   const grupo = document.getElementById("driverGrupo").value.trim();
   const tipo = "formal";
-  const vehicleType = "moto";
+  const vehicleType = document.getElementById("driverVehicleType").value;
   document.getElementById("err2").textContent = "";
 
   if (!name || !phone) {
@@ -422,6 +429,7 @@ async function registerDriver() {
   document.getElementById("driverPhone").value = "";
   document.getElementById("driverVehicle").value = "";
   document.getElementById("driverGrupo").value = "";
+  document.getElementById("driverVehicleType").value = "moto";
   document.getElementById("driverAcceptedLegal").checked = false;
   document.getElementById("driverPhotoInput").value = "";
   pendingDriverPhoto = null;
@@ -456,7 +464,7 @@ async function saveEdit(id) {
   const vehicle = document.getElementById(`edit-vehicle-${id}`).value.trim();
   const grupo = document.getElementById(`edit-grupo-${id}`).value.trim();
   const tipo = "formal";
-  const vehicleType = "moto";
+  const vehicleType = document.getElementById(`edit-vehicletype-${id}`).value;
   if (!name || !phone) {
     showToast("Escribe nombre y teléfono");
     return;
@@ -516,6 +524,15 @@ function vehicleTypeBadge(vehicleType) {
   return t === "taxi" ? `<span class="badge-tipo formal">🚕 Taxi</span>` : `<span class="badge-tipo informal">🛵 Moto</span>`;
 }
 
+function vehicleTypeSelect(id, vehicleType) {
+  const t = vehicleType === "taxi" ? "taxi" : "moto";
+  return `
+    <select id="edit-vehicletype-${id}" class="tipo-select">
+      <option value="moto" ${t === "moto" ? "selected" : ""}>🛵 Moto</option>
+      <option value="taxi" ${t === "taxi" ? "selected" : ""}>🚕 Taxi</option>
+    </select>`;
+}
+
 function renderDriverRows() {
   const rows = tipoFilter === "todos"
     ? driversCache
@@ -534,7 +551,7 @@ function renderDriverRows() {
           </div>
         </td>
         <td>${tipoBadge(d.tipo)}</td>
-        <td>${vehicleTypeBadge(d.vehicle_type)}</td>
+        <td>${vehicleTypeSelect(d.id, d.vehicle_type)}</td>
         <td><span class="dot ${d.status}"></span>${d.status}</td>
         <td><input id="edit-vehicle-${d.id}" value="${d.vehicle || ""}" placeholder="Vehículo" /></td>
         <td><input id="edit-grupo-${d.id}" value="${d.grupo || ""}" placeholder="Agrupación" /></td>
