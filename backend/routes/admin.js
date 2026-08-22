@@ -27,7 +27,7 @@ router.post("/admin/login", (req, res) => {
 });
 
 router.post("/admin/drivers", checkAdminPin, (req, res) => {
-  const { name, phone, vehicle, tipo, acceptedLegal, photo, vehicleType } = req.body;
+  const { name, phone, vehicle, tipo, acceptedLegal, photo, vehicleType, grupo } = req.body;
   if (!name || !phone) {
     return res.status(400).json({ error: "Falta nombre o teléfono" });
   }
@@ -56,12 +56,12 @@ router.post("/admin/drivers", checkAdminPin, (req, res) => {
   const pin = generateDriverPin();
   const result = db
     .prepare(
-      "INSERT INTO drivers (name, phone, vehicle, pin, tipo, accepted_legal_at, accepted_legal_version, photo, vehicle_type) VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)"
+      "INSERT INTO drivers (name, phone, vehicle, pin, tipo, accepted_legal_at, accepted_legal_version, photo, vehicle_type, grupo) VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)"
     )
-    .run(name, phone, vehicle || null, pin, tipo === "formal" ? "formal" : "informal", AVISO_LEGAL_VERSION, photo || null, vehicleType === "taxi" ? "taxi" : "moto");
+    .run(name, phone, vehicle || null, pin, tipo === "formal" ? "formal" : "informal", AVISO_LEGAL_VERSION, photo || null, vehicleType === "taxi" ? "taxi" : "moto", grupo || null);
 
   const driver = db
-    .prepare("SELECT id, name, phone, vehicle, pin, status, tipo, photo, vehicle_type FROM drivers WHERE id = ?")
+    .prepare("SELECT id, name, phone, vehicle, pin, status, tipo, photo, vehicle_type, grupo FROM drivers WHERE id = ?")
     .get(result.lastInsertRowid);
 
   res.status(201).json(driver);
@@ -70,7 +70,7 @@ router.post("/admin/drivers", checkAdminPin, (req, res) => {
 router.post("/admin/drivers/list", checkAdminPin, (req, res) => {
   const drivers = db
     .prepare(
-      "SELECT id, name, phone, vehicle, pin, status, last_seen, paid_until, vouched_by, vouched_at, tipo, photo, vehicle_type, created_at FROM drivers WHERE deleted_at IS NULL ORDER BY created_at DESC"
+      "SELECT id, name, phone, vehicle, pin, status, last_seen, paid_until, vouched_by, vouched_at, tipo, photo, vehicle_type, cancel_count, cooldown_until, grupo, created_at FROM drivers WHERE deleted_at IS NULL ORDER BY created_at DESC"
     )
     .all();
   res.json(drivers);
@@ -97,7 +97,7 @@ router.post("/admin/drivers/:id/vouch", checkAdminPin, (req, res) => {
 });
 
 router.post("/admin/drivers/:id/update", checkAdminPin, (req, res) => {
-  const { name, phone, vehicle, tipo, vehicleType } = req.body;
+  const { name, phone, vehicle, tipo, vehicleType, grupo } = req.body;
   if (!name || !phone) {
     return res.status(400).json({ error: "Falta nombre o teléfono" });
   }
@@ -121,12 +121,12 @@ router.post("/admin/drivers/:id/update", checkAdminPin, (req, res) => {
   }
 
   db.prepare(
-    "UPDATE drivers SET name = ?, phone = ?, vehicle = ?, tipo = ?, vehicle_type = ? WHERE id = ?"
-  ).run(name, phone, vehicle || null, tipo === "formal" ? "formal" : "informal", vehicleType === "taxi" ? "taxi" : "moto", req.params.id);
+    "UPDATE drivers SET name = ?, phone = ?, vehicle = ?, tipo = ?, vehicle_type = ?, grupo = ? WHERE id = ?"
+  ).run(name, phone, vehicle || null, tipo === "formal" ? "formal" : "informal", vehicleType === "taxi" ? "taxi" : "moto", grupo || null, req.params.id);
 
   const driver = db
     .prepare(
-      "SELECT id, name, phone, vehicle, pin, status, last_seen, paid_until, tipo, vehicle_type, created_at FROM drivers WHERE id = ?"
+      "SELECT id, name, phone, vehicle, pin, status, last_seen, paid_until, tipo, vehicle_type, grupo, created_at FROM drivers WHERE id = ?"
     )
     .get(req.params.id);
   res.json(driver);
@@ -166,6 +166,7 @@ router.post("/admin/rides/list", checkAdminPin, (req, res) => {
     .prepare(
       `SELECT r.id, r.rider_name, r.rider_phone, r.pickup_label, r.dest_label,
               r.passengers, r.status, r.created_at, r.updated_at, r.driver_disconnected_at, r.rating, r.ride_type,
+              r.cancelled_by, r.cancel_reason,
               d.name AS driver_name
        FROM rides r
        LEFT JOIN drivers d ON d.id = r.driver_id
