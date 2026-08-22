@@ -551,7 +551,10 @@ function connectWs() {
     if (type === "driver_reconnected") onDriverReconnected();
     if (type === "driver_lost") onDriverLost();
     if (type === "no_drivers_available") onNoDriversAvailable();
-    if (type === "chat") appendChatMessage(payload.text, "them");
+    if (type === "chat") {
+      document.getElementById("chatBox").style.display = "flex";
+      appendChatMessage(payload.text, "them");
+    }
   };
   ws.onclose = () => {
     clearInterval(pingInterval);
