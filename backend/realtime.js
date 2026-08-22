@@ -214,7 +214,9 @@ function notifyRide(rideId, type, payload) {
 function broadcastNewRide(ride) {
   const rideType = ride.ride_type === "taxi" ? "taxi" : "moto";
   const available = db
-    .prepare("SELECT id FROM drivers WHERE status = 'disponible' AND vehicle_type = ?")
+    .prepare(
+      "SELECT id FROM drivers WHERE status = 'disponible' AND vehicle_type = ? AND (cooldown_until IS NULL OR cooldown_until <= datetime('now'))"
+    )
     .all(rideType);
   for (const { id } of available) {
     const ws = driverSockets.get(id);
