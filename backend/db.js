@@ -148,4 +148,34 @@ try {
   // la columna ya existe
 }
 
+try {
+  db.exec("ALTER TABLE rides ADD COLUMN cancelled_by TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE rides ADD COLUMN cancel_reason TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE drivers ADD COLUMN cancel_count INTEGER NOT NULL DEFAULT 0");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE drivers ADD COLUMN cooldown_until TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE drivers ADD COLUMN grupo TEXT");
+} catch {
+  // la columna ya existe
+}
+
 module.exports = db;
