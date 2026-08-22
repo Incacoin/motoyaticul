@@ -249,6 +249,11 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+function waLink(phone, text) {
+  const digits = (phone || "").replace(/\D/g, "");
+  return `https://api.whatsapp.com/send?phone=52${digits}&text=${encodeURIComponent(text)}`;
+}
+
 const FARE_SHORT_KM = 0.5;
 const FARE_SHORT = 10;
 const FARE_THRESHOLD_KM = 1.5;
@@ -640,7 +645,10 @@ function renderRideList() {
         <div class="meta">Recogida a <span id="dist-${r.id}">${dist}</span> km${r.pickup_label ? " · " + r.pickup_label : ""}</div>
         ${r.dest_lat ? `<div class="meta">Destino: ${r.dest_label || "punto marcado en el mapa"} (${haversine(r.pickup_lat, r.pickup_lng, r.dest_lat, r.dest_lng).toFixed(1)} km desde la recogida)</div>` : ""}
         <div class="meta fare">${estimateFare(r)}</div>
-        <a class="btn-sm" href="tel:${r.rider_phone}" style="display:block;text-align:center;margin-bottom:6px;text-decoration:none;">📞 Llamar al pasajero</a>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <a class="btn-sm" href="tel:${r.rider_phone}" style="flex:1;text-align:center;text-decoration:none;">📞 Llamar</a>
+          <a class="btn-sm wa" href="${waLink(r.rider_phone, `Hola, soy ${driver.name}, tu chofer de MotoYaTicul.`)}" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">💬 Mensaje</a>
+        </div>
         <button class="btn" onclick="acceptRide(${r.id})">Aceptar</button>
       </div>`;
   }).join("");
