@@ -218,9 +218,8 @@ function showChatForRide(rideId) {
 function sendChatMessage() {
   const input = document.getElementById("chatInput");
   const text = input.value.trim();
-  if (!text || !ws || ws.readyState !== WebSocket.OPEN || !currentRide) return;
-  ws.send(JSON.stringify({ type: "chat", text }));
-  showChatForRide(currentRide.id);
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN || !chatRideId) return;
+  ws.send(JSON.stringify({ type: "chat", rideId: chatRideId, text }));
   appendChatMessage(text, "me");
   input.value = "";
 }
@@ -230,6 +229,7 @@ function showChat() {
 }
 
 function hideChat() {
+  chatRideId = null;
   document.getElementById("chatBox").style.display = "none";
 }
 
@@ -589,6 +589,7 @@ function removePendingRide(id) {
     pendingMarkers[id].forEach((m) => map.removeLayer(m));
     delete pendingMarkers[id];
   }
+  if (!currentRide && chatRideId === id) hideChat();
   syncPendingMarkers();
   renderRideList();
 }
