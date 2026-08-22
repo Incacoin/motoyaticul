@@ -201,18 +201,32 @@ function appendChatMessage(text, who) {
   el.scrollTop = el.scrollHeight;
 }
 
+// El chofer solo tiene una caja de chat en pantalla, pero puede tener
+// mensajes de más de una solicitud pendiente a la vez — si el mensaje
+// entrante es de un viaje distinto al que se está mostrando, se limpia y
+// se empieza un hilo nuevo en vez de mezclar conversaciones de pasajeros distintos.
+let chatRideId = null;
+
+function showChatForRide(rideId) {
+  if (chatRideId !== rideId) {
+    document.getElementById("chatMessages").innerHTML = "";
+    chatRideId = rideId;
+  }
+  document.getElementById("chatBox").style.display = "flex";
+}
+
 function sendChatMessage() {
   const input = document.getElementById("chatInput");
   const text = input.value.trim();
-  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN || !currentRide) return;
   ws.send(JSON.stringify({ type: "chat", text }));
+  showChatForRide(currentRide.id);
   appendChatMessage(text, "me");
   input.value = "";
 }
 
 function showChat() {
-  document.getElementById("chatMessages").innerHTML = "";
-  document.getElementById("chatBox").style.display = "flex";
+  if (currentRide) showChatForRide(currentRide.id);
 }
 
 function hideChat() {
@@ -397,7 +411,10 @@ function connectWs() {
       showToast("El pasajero canceló el viaje");
       renderRideList();
     }
-    if (type === "chat") appendChatMessage(payload.text, "them");
+    if (type === "chat") {
+      showChatForRide(payload.rideId);
+      appendChatMessage(payload.text, "them");
+    }
   };
   ws.onclose = (ev) => {
     clearInterval(pingInterval);
@@ -866,8 +883,9 @@ function sendPendingMessage() {
   const text = input.value.trim();
   if (!text || !pendingMessageRideId || !ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ type: "chat", rideId: pendingMessageRideId, text }));
+  showChatForRide(pendingMessageRideId);
+  appendChatMessage(text, "me");
   closeMessageOverlay();
-  showToast("Mensaje enviado");
 }
 
 async function confirmCancel(reason) {
