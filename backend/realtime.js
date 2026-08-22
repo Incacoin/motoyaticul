@@ -157,10 +157,10 @@ function attach(httpServer) {
             if (ride.driver_id && ride.driver_id !== driverId) return;
             if (!["buscando", "aceptado", "llegue", "en_curso"].includes(ride.status)) return;
             if (!ride.driver_id) preAcceptContact.set(rideId, driverId);
-            notifyRide(rideId, "chat", { text });
+            notifyRide(rideId, "chat", { text, rideId });
           } else {
             const ride = activeRideForDriver(driverId);
-            if (ride) notifyRide(ride.id, "chat", { text });
+            if (ride) notifyRide(ride.id, "chat", { text, rideId: ride.id });
           }
         }
       });
@@ -201,7 +201,7 @@ function attach(httpServer) {
           const current = db.prepare("SELECT driver_id FROM rides WHERE id = ?").get(rideId);
           const targetDriverId = current?.driver_id || preAcceptContact.get(rideId);
           if (targetDriverId) {
-            notifyDriver(targetDriverId, "chat", { text: msg.text.trim().slice(0, 300) });
+            notifyDriver(targetDriverId, "chat", { text: msg.text.trim().slice(0, 300), rideId });
           }
         }
       });
