@@ -115,6 +115,15 @@
   </div>
 </div>
 
+<div id="messageOverlay" class="cancel-overlay">
+  <div class="card cancel-sheet">
+    <div class="label">Mensaje para el pasajero</div>
+    <input id="messageOverlayInput" type="text" maxlength="300" placeholder="Escribe tu mensaje..." style="width:100%;box-sizing:border-box;padding:10px;margin-bottom:8px;" onkeydown="if(event.key==='Enter')sendPendingMessage()" />
+    <button class="btn" onclick="sendPendingMessage()">Enviar</button>
+    <button class="btn-sm" onclick="closeMessageOverlay()">Cancelar</button>
+  </div>
+</div>
+
 <script>
 const API = "";
 let deferredInstallPrompt = null;
@@ -247,11 +256,6 @@ function haversine(lat1, lng1, lat2, lng2) {
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-function waLink(phone, text) {
-  const digits = (phone || "").replace(/\D/g, "");
-  return `https://api.whatsapp.com/send?phone=52${digits}&text=${encodeURIComponent(text)}`;
 }
 
 const FARE_SHORT_KM = 0.5;
@@ -647,7 +651,7 @@ function renderRideList() {
         <div class="meta fare">${estimateFare(r)}</div>
         <div style="display:flex;gap:6px;margin-bottom:6px;">
           <a class="btn-sm" href="tel:${r.rider_phone}" style="flex:1;text-align:center;text-decoration:none;">📞 Llamar</a>
-          <a class="btn-sm wa" href="${waLink(r.rider_phone, `Hola, soy ${driver.name}, tu chofer de MotoYaTicul.`)}" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">💬 Mensaje</a>
+          <button class="btn-sm wa" style="flex:1;" onclick="openMessageOverlay(${r.id})">💬 Mensaje</button>
         </div>
         <button class="btn" onclick="acceptRide(${r.id})">Aceptar</button>
       </div>`;
@@ -841,6 +845,29 @@ function cancelCurrentRide() {
 
 function closeCancelOverlay() {
   document.getElementById("cancelReasonOverlay").style.display = "none";
+}
+
+let pendingMessageRideId = null;
+
+function openMessageOverlay(rideId) {
+  pendingMessageRideId = rideId;
+  document.getElementById("messageOverlayInput").value = "";
+  document.getElementById("messageOverlay").style.display = "flex";
+  document.getElementById("messageOverlayInput").focus();
+}
+
+function closeMessageOverlay() {
+  document.getElementById("messageOverlay").style.display = "none";
+  pendingMessageRideId = null;
+}
+
+function sendPendingMessage() {
+  const input = document.getElementById("messageOverlayInput");
+  const text = input.value.trim();
+  if (!text || !pendingMessageRideId || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: "chat", rideId: pendingMessageRideId, text }));
+  closeMessageOverlay();
+  showToast("Mensaje enviado");
 }
 
 async function confirmCancel(reason) {
