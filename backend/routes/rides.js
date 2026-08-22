@@ -84,6 +84,7 @@ router.post("/rides/:id/accept", (req, res) => {
     driverId
   );
   realtime.clearNoDriverTimer(rideId);
+  realtime.clearPreAcceptContact(rideId);
 
   const ride = db.prepare("SELECT * FROM rides WHERE id = ?").get(rideId);
   const driver = db
@@ -178,6 +179,7 @@ router.post("/rides/:id/cancel", (req, res) => {
   ).run(cancelledBy || null, reason || null, rideId);
   realtime.clearDisconnectTimer(rideId);
   realtime.clearNoDriverTimer(rideId);
+  realtime.clearPreAcceptContact(rideId);
 
   let cooldownUntil = null;
   if (ride.driver_id) {
