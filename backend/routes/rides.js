@@ -44,9 +44,19 @@ router.post("/rides", (req, res) => {
     .prepare("SELECT * FROM rides WHERE id = ?")
     .get(result.lastInsertRowid);
 
+  // Viajes completados anteriores de este mismo teléfono — para mostrarle
+  // su propio contador/insignia de pasajero frecuente. Va pegado a la
+  // creación del viaje (no es un endpoint público aparte) para no dejar
+  // consultar el historial de cualquier número ajeno.
+  const { trips: riderTripCount } = db
+    .prepare(
+      "SELECT COUNT(*) AS trips FROM rides WHERE rider_phone = ? AND status = 'completado'"
+    )
+    .get(rider_phone);
+
   realtime.broadcastNewRide(ride);
   realtime.startNoDriverTimer(ride.id);
-  res.status(201).json(ride);
+  res.status(201).json({ ...ride, riderTripCount });
 });
 
 // Si un pasajero o chofer se quedó a medias (app cerrada, celular apagado,
