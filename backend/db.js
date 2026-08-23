@@ -44,6 +44,15 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'pendiente',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS driver_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    driver_id INTEGER NOT NULL REFERENCES drivers(id),
+    amount REAL NOT NULL,
+    period_start TEXT,
+    period_end TEXT,
+    paid_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 try {
