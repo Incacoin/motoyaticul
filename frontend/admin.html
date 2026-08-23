@@ -137,6 +137,10 @@
     <div class="top-drivers" id="topDrivers"></div>
   </div>
 
+  <h1>🏆 Ranking de lanzamiento</h1>
+  <p class="section-hint">Desde el 21 de agosto. El Top 5 no paga su primer mes de mensualidad; el 🥇 primer lugar además gana un bono de $500 MXN.</p>
+  <div class="top-drivers" id="launchRanking" style="margin-bottom:30px;"></div>
+
   <h1>Solicitudes de chofer</h1>
   <p class="section-hint">Gente que se registró desde el QR de "Quiero ser chofer".</p>
   <div id="applicationsList"></div>
@@ -230,6 +234,8 @@
 const API = "";
 const SERVICE_FEE = 2;
 let adminPin = null;
+let launchRankingCache = [];
+let trialEndDateCache = "2026-09-20";
 let driversCache = [];
 let applicationsCache = [];
 let pendingDriverPhoto = null;
@@ -409,6 +415,19 @@ async function loadStats() {
     s.satisfactionPct === null ? "—" : `${s.satisfactionPct}% (${s.ratedCount})`;
   document.getElementById("statCollectedWeek").textContent = `$${s.collectedWeek}`;
   document.getElementById("statCollectedMonth").textContent = `$${s.collectedMonth}`;
+
+  launchRankingCache = s.launchRanking || [];
+  trialEndDateCache = s.trialEndDate || trialEndDateCache;
+  const medals = ["🥇", "🥈", "🥉", "4.", "5."];
+  const rankMax = Math.max(1, ...launchRankingCache.map((d) => d.rides));
+  document.getElementById("launchRanking").innerHTML = launchRankingCache.length
+    ? launchRankingCache.map((d, i) => `
+      <div class="top-driver-row">
+        <span class="name">${medals[i]} ${d.name}</span>
+        <div class="top-driver-bar-wrap"><div class="top-driver-bar" style="width:${(d.rides / rankMax) * 100}%"></div></div>
+        <span class="count">${d.rides}</span>
+      </div>`).join("")
+    : `<div class="ago">Todavía no hay viajes completados desde el lanzamiento.</div>`;
 
   const max = Math.max(1, ...s.topDrivers.map((d) => d.rides));
   document.getElementById("topDrivers").innerHTML = s.topDrivers.length
@@ -726,27 +745,40 @@ async function registerPayment(id) {
 
 function paymentReminderMessage(d) {
   const today = new Date().toISOString().slice(0, 10);
-  const monthlyVencido = !d.paid_until || d.paid_until < today;
+  const inTrial = today < trialEndDateCache;
   const pendingRides = d.pending_rides || 0;
   const feeAmount = pendingRides * SERVICE_FEE;
+  const monthlyVencido = !inTrial && (!d.paid_until || d.paid_until < today);
 
   const lines = [];
-  lines.push(
-    monthlyVencido
-      ? `• Cuota mensual: vencida ($100 MXN)`
-      : `• Cuota mensual: vigente hasta ${d.paid_until}`
-  );
+  if (inTrial && !d.paid_until) {
+    lines.push(`🎉 Sigues en tu mes de prueba gratis (hasta el ${trialEndDateCache}) — todavía no debes cuota mensual.`);
+  } else {
+    lines.push(
+      monthlyVencido
+        ? `• Cuota mensual: vencida ($100 MXN)`
+        : `• Cuota mensual: vigente hasta ${d.paid_until}`
+    );
+  }
   lines.push(
     pendingRides > 0
       ? `• Viajes por cobrar: ${pendingRides} × $${SERVICE_FEE} = $${feeAmount} MXN`
-      : `• Viajes: sin pendientes`
+      : `• Viajes: sin pendientes 👍`
   );
+
+  const rankIndex = launchRankingCache.findIndex((r) => r.id === d.id);
+  let rankingNote = "";
+  if (rankIndex === 0) {
+    rankingNote = `\n🥇 ¡Vas en primer lugar del ranking de lanzamiento! Si te mantienes ahí, tu primer mes de mensualidad es GRATIS 🎉 y ganas un bono de $500 MXN 💰\n`;
+  } else if (rankIndex > 0 && rankIndex < 5) {
+    rankingNote = `\n🏆 ¡Vas en el Top 5 del ranking de lanzamiento! Si te mantienes ahí, tu primer mes de mensualidad es GRATIS 🎉\n`;
+  }
 
   const total = (monthlyVencido ? 100 : 0) + feeAmount;
   const totalLine = total > 0 ? `\nTotal a pagar: $${total} MXN\n` : "";
   const leaderName = d.vouched_by || "tu líder de gremio";
 
-  return `Hola ${d.name}, aquí tu resumen de MotoYaTicul:\n\n${lines.join("\n")}\n${totalLine}\nEntrégaselo a ${leaderName} como de costumbre. ¡Gracias por seguir con nosotros!`;
+  return `¡Hola ${d.name}! 🛵💛 Gracias por ser parte del equipo MotoYaTicul, se nota tu esfuerzo.\n\n${lines.join("\n")}\n${rankingNote}${totalLine}\nEntrégaselo a ${leaderName} como de costumbre.\n\n¡Sigue así! 🙌`;
 }
 
 function sendPaymentReminder(id) {
