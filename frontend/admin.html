@@ -228,6 +228,7 @@
 
 <script>
 const API = "";
+const SERVICE_FEE = 2;
 let adminPin = null;
 let driversCache = [];
 let applicationsCache = [];
@@ -602,6 +603,11 @@ function renderDriverRows() {
     const lastPaymentLabel = d.last_payment_at
       ? `<div class="lastPayment">último pago: $${d.last_payment_amount} el ${d.last_payment_at.slice(0, 10)}</div>`
       : `<div class="lastPayment">sin pagos registrados</div>`;
+    const pendingRides = d.pending_rides || 0;
+    const pendingFeeAmount = pendingRides * SERVICE_FEE;
+    const pendingFeesLabel = pendingRides > 0
+      ? `<div class="lastPayment">viajes sin cobrar: ${pendingRides} × $${SERVICE_FEE} = <strong>$${pendingFeeAmount}</strong></div>`
+      : `<div class="lastPayment">sin viajes pendientes de cobrar</div>`;
     const vouchLabel = d.vouched_by
       ? `<div class="avalado">avalado ${d.vouched_at ? "el " + d.vouched_at : ""}</div>`
       : `<div class="sin-aval">sin aval</div>`;
@@ -630,6 +636,8 @@ function renderDriverRows() {
           <button class="btn-sm" onclick="registerPayment(${d.id})">Registrar pago</button>
         </div>
         ${lastPaymentLabel}
+        ${pendingFeesLabel}
+        ${pendingRides > 0 ? `<button class="btn-sm" onclick="registerTripFees(${d.id})">Cobrar viajes ($${pendingFeeAmount})</button>` : ""}
         <button class="histLink" onclick="showPaymentsModal(${d.id}, '${d.name.replace(/'/g, "\\'")}')">Ver historial</button>
       </td>
       <td>
@@ -713,6 +721,22 @@ async function registerPayment(id) {
   loadStats();
 }
 
+async function registerTripFees(id) {
+  const res = await fetch(API + `/api/admin/drivers/${id}/register-trip-fees`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!res.ok) {
+    showToast((await res.json()).error || "No se pudo registrar el cobro");
+    return;
+  }
+  const { count, amount } = await res.json();
+  showToast(`Cobrado: ${count} viajes × $${SERVICE_FEE} = $${amount}`);
+  loadDrivers();
+  loadStats();
+}
+
 async function showPaymentsModal(id, name) {
   document.getElementById("paymentsModalTitle").textContent = `Pagos de ${name}`;
   const body = document.getElementById("paymentsModalBody");
@@ -729,8 +753,8 @@ async function showPaymentsModal(id, name) {
     ? payments.map((p) => `
       <div class="payHistRow">
         <span>${p.paid_at.slice(0, 10)}</span>
-        <span>$${p.amount}</span>
-        <span class="ago">${p.period_start || "—"} → ${p.period_end || "—"}</span>
+        <span>$${p.amount}${p.concept === "viajes" ? ` (${p.ride_count} viajes)` : " (mensual)"}</span>
+        <span class="ago">${p.concept === "viajes" ? "" : `${p.period_start || "—"} → ${p.period_end || "—"}`}</span>
       </div>`).join("")
     : `<div class="ago">Sin pagos registrados todavía.</div>`;
 }
