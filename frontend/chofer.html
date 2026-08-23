@@ -80,6 +80,7 @@
       <div id="rankBadge" style="display:none;font-size:12.5px;font-weight:700;color:var(--accent);"></div>
       <div id="statusText" style="font-size:13px;color:var(--text-dim);">Desconectado</div>
       <div id="todayCountText" style="font-size:12px;color:var(--text-faint);"></div>
+      <div id="tierBadge" style="display:none;font-size:12px;color:var(--text-faint);"></div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
       <div id="toggle">
@@ -343,6 +344,7 @@ function startApp() {
   document.getElementById("todayCountText").textContent = `Viajes hoy: ${todayCount}`;
   if (driver.cooldown_until) applyCooldown(driver.cooldown_until);
   refreshRankBadge();
+  showDriverTierBadge(driver.lifetimeTrips);
 
   map = L.map("map").setView([20.386, -89.532], 14); // Ticul aprox
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -835,6 +837,7 @@ async function completeRide() {
   showToast("Viaje completado ✅");
   renderRideList();
   refreshRankBadge();
+  showDriverTierBadge(data.lifetimeTrips);
 }
 
 const RANK_EMOJI = { 1: "🥇", 2: "🥈", 3: "🥉" };
@@ -854,6 +857,25 @@ async function refreshRankBadge() {
   } catch {
     // sin insignia si falla, no bloquea el resto de la app
   }
+}
+
+// Logro personal por experiencia acumulada — aparte y no compite con "Top
+// chofer" (que es de los 3 mejores activos del mes, comparado con los demás).
+// Números de arranque, sin datos reales de volumen todavía; ajustar cuando
+// se vea el ritmo real de viajes por chofer.
+const DRIVER_TIERS = [
+  { min: 300, label: "🥇 Chofer élite" },
+  { min: 150, label: "🥈 Chofer veterano" },
+  { min: 50, label: "🥉 Chofer con experiencia" },
+];
+
+function showDriverTierBadge(lifetimeTrips) {
+  const el = document.getElementById("tierBadge");
+  if (lifetimeTrips == null) { el.style.display = "none"; return; }
+  const tier = DRIVER_TIERS.find((t) => lifetimeTrips >= t.min);
+  if (!tier) { el.style.display = "none"; return; }
+  el.textContent = `${tier.label} · ${lifetimeTrips} viajes`;
+  el.style.display = "block";
 }
 
 function cancelCurrentRide() {
