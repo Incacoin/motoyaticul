@@ -194,8 +194,14 @@ router.post("/rides/:id/complete", (req, res) => {
     )
     .get(driverId);
 
+  const { count: lifetimeTrips } = db
+    .prepare(
+      "SELECT COUNT(*) as count FROM rides WHERE driver_id = ? AND status = 'completado'"
+    )
+    .get(driverId);
+
   realtime.notifyRide(rideId, "status_change", { status: "completado" });
-  res.json({ ok: true, todayCount });
+  res.json({ ok: true, todayCount, lifetimeTrips });
 });
 
 // Enfriamiento tras cancelación del chofer: si ya se había comprometido con un
