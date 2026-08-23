@@ -71,7 +71,13 @@ router.post("/drivers/login", (req, res) => {
     )
     .get(driver.id);
 
-  res.json({ ...driver, todayCount });
+  const { count: lifetimeTrips } = db
+    .prepare(
+      "SELECT COUNT(*) as count FROM rides WHERE driver_id = ? AND status = 'completado'"
+    )
+    .get(driver.id);
+
+  res.json({ ...driver, todayCount, lifetimeTrips });
 });
 
 router.post("/chofer-solicitudes", (req, res) => {
