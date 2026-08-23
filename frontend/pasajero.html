@@ -79,7 +79,14 @@
   <input id="phoneInput" placeholder="Tu teléfono" inputmode="numeric" maxlength="10" oninput="this.value = this.value.replace(/\D/g, '')" />
   <button class="btn" onclick="goToMap()">Continuar</button>
   <div id="formError"></div>
+  <button class="btn-sm" onclick="openHistory()" style="margin-top:8px;">📋 Mis viajes</button>
   <div class="credit" style="position:absolute;bottom:18px;">⚡ Tecnología de <strong>Lealtad Digital</strong> · <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso legal</a></div>
+</div>
+
+<div id="historyScreen" class="screen">
+  <div class="brand" style="font-size:20px;">📋 Mis viajes</div>
+  <div id="historyList" style="padding:16px;overflow-y:auto;flex:1;width:100%;box-sizing:border-box;max-width:420px;margin:0 auto;"></div>
+  <button class="btn btn-secondary" onclick="closeHistory()" style="max-width:420px;margin:0 auto 24px;width:calc(100% - 32px);">Volver</button>
 </div>
 
 <div id="mapScreen" class="screen">
@@ -110,6 +117,7 @@
 
 <div id="status" class="screen">
   <div class="big" id="statusText">Buscando chofer cercano...</div>
+  <div id="tripCountBadge" class="etaText" style="display:none;"></div>
   <div id="etaText" class="etaText"></div>
   <div id="connWarning"></div>
   <div id="statusMap"></div>
@@ -415,7 +423,7 @@ function goToMap() {
   document.getElementById("form").classList.remove("active");
   document.getElementById("mapScreen").classList.add("active");
 
-  map = L.map("map").setView([20.2098, -89.4620], 14); // Ticul aprox
+  map = L.map("map").setView([20.386, -89.532], 14); // Ticul aprox
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap",
   }).addTo(map);
@@ -494,6 +502,7 @@ async function requestRide() {
   });
   ride = await res.json();
   localStorage.setItem("motoya_active_ride", String(ride.id));
+  showTripCountBadge(ride.riderTripCount);
 
   stopAvailableDriversPolling();
   document.getElementById("mapScreen").classList.remove("active");
@@ -661,9 +670,74 @@ function onDriverLocation({ lat, lng }) {
   if (!routeRefreshInterval) startRouteTracking();
 }
 
+const FREQUENT_RIDER_THRESHOLD = 15;
+
+function showTripCountBadge(count) {
+  const el = document.getElementById("tripCountBadge");
+  if (count == null) { el.style.display = "none"; return; }
+  const badge = count >= FREQUENT_RIDER_THRESHOLD ? " · 🏆 Pasajero frecuente" : "";
+  el.textContent = `Llevas ${count} viaje${count === 1 ? "" : "s"} con MotoYaTicul${badge}`;
+  el.style.display = "block";
+}
+
+// Historial guardado en este celular (no en una cuenta) — cada quien solo ve
+// el suyo, sin pedir registro ni exponer el historial de nadie más.
+function saveRideToLocalHistory(rideId) {
+  let history = [];
+  try {
+    history = JSON.parse(localStorage.getItem("motoya_ride_history") || "[]");
+  } catch {
+    history = [];
+  }
+  history = history.filter((id) => id !== rideId);
+  history.unshift(rideId);
+  history = history.slice(0, 20);
+  localStorage.setItem("motoya_ride_history", JSON.stringify(history));
+}
+
+async function openHistory() {
+  document.getElementById("form").classList.remove("active");
+  document.getElementById("historyScreen").classList.add("active");
+  const listEl = document.getElementById("historyList");
+  let history = [];
+  try {
+    history = JSON.parse(localStorage.getItem("motoya_ride_history") || "[]");
+  } catch {
+    history = [];
+  }
+  if (history.length === 0) {
+    listEl.innerHTML = `<div style="color:var(--text-dim);text-align:center;padding:24px 0;">Todavía no tienes viajes completados en este celular.</div>`;
+    return;
+  }
+  listEl.innerHTML = `<div style="color:var(--text-dim);text-align:center;padding:24px 0;">Cargando...</div>`;
+  const rides = await Promise.all(
+    history.map((id) => fetch(API + `/api/rides/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null))
+  );
+  listEl.innerHTML = rides
+    .filter(Boolean)
+    .map((r) => {
+      const fecha = (r.updated_at || r.created_at || "").slice(0, 16).replace("T", " ");
+      const estadoLabel = { completado: "Completado", cancelado: "Cancelado" }[r.status] || r.status;
+      return `
+      <div class="card" style="margin-bottom:10px;padding:14px;">
+        <div style="font-weight:700;">${estadoLabel}</div>
+        <div class="meta" style="color:var(--text-dim);font-size:13.5px;">${fecha}</div>
+        ${r.pickup_label ? `<div class="meta" style="color:var(--text-dim);font-size:13.5px;">Desde: ${r.pickup_label}</div>` : ""}
+        ${r.dest_label ? `<div class="meta" style="color:var(--text-dim);font-size:13.5px;">Hasta: ${r.dest_label}</div>` : ""}
+      </div>`;
+    })
+    .join("") || `<div style="color:var(--text-dim);text-align:center;padding:24px 0;">Todavía no tienes viajes completados en este celular.</div>`;
+}
+
+function closeHistory() {
+  document.getElementById("historyScreen").classList.remove("active");
+  document.getElementById("form").classList.add("active");
+}
+
 function onCompleted() {
   currentRideStatus = "completado";
   localStorage.removeItem("motoya_active_ride");
+  if (ride) saveRideToLocalHistory(ride.id);
   document.getElementById("statusText").textContent = "¡Buen viaje! Gracias por usar MotoYaTicul 🛵";
   document.getElementById("connWarning").style.display = "none";
   document.getElementById("driverCard").style.display = "none";
