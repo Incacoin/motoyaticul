@@ -1,6 +1,6 @@
 const express = require("express");
 const db = require("../db");
-const { AVISO_LEGAL_VERSION } = require("../constants");
+const { AVISO_LEGAL_VERSION, SERVICE_FEE } = require("../constants");
 
 const router = express.Router();
 
@@ -73,7 +73,8 @@ router.post("/admin/drivers/list", checkAdminPin, (req, res) => {
       `SELECT d.id, d.name, d.phone, d.vehicle, d.pin, d.status, d.last_seen, d.paid_until, d.vouched_by, d.vouched_at,
               d.tipo, d.photo, d.vehicle_type, d.cancel_count, d.cooldown_until, d.grupo, d.created_at,
               (SELECT amount FROM driver_payments WHERE driver_id = d.id ORDER BY paid_at DESC LIMIT 1) AS last_payment_amount,
-              (SELECT paid_at FROM driver_payments WHERE driver_id = d.id ORDER BY paid_at DESC LIMIT 1) AS last_payment_at
+              (SELECT paid_at FROM driver_payments WHERE driver_id = d.id ORDER BY paid_at DESC LIMIT 1) AS last_payment_at,
+              (SELECT COUNT(*) FROM rides WHERE driver_id = d.id AND status = 'completado' AND fee_settled_at IS NULL) AS pending_rides
        FROM drivers d
        WHERE d.deleted_at IS NULL
        ORDER BY d.created_at DESC`
@@ -109,17 +110,48 @@ router.post("/admin/drivers/:id/register-payment", checkAdminPin, (req, res) => 
   const periodEndStr = periodEnd.toISOString().slice(0, 10);
 
   db.prepare(
-    "INSERT INTO driver_payments (driver_id, amount, period_start, period_end) VALUES (?, ?, ?, ?)"
+    "INSERT INTO driver_payments (driver_id, amount, period_start, period_end, concept) VALUES (?, ?, ?, ?, 'mensual')"
   ).run(req.params.id, amount, base, periodEndStr);
   db.prepare("UPDATE drivers SET paid_until = ? WHERE id = ?").run(periodEndStr, req.params.id);
 
   res.json({ ok: true, paidUntil: periodEndStr });
 });
 
+router.post("/admin/drivers/:id/pending-fees", checkAdminPin, (req, res) => {
+  const { count } = db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM rides WHERE driver_id = ? AND status = 'completado' AND fee_settled_at IS NULL"
+    )
+    .get(req.params.id);
+  res.json({ count, amount: count * SERVICE_FEE, feePerRide: SERVICE_FEE });
+});
+
+router.post("/admin/drivers/:id/register-trip-fees", checkAdminPin, (req, res) => {
+  const pendingRides = db
+    .prepare(
+      "SELECT id FROM rides WHERE driver_id = ? AND status = 'completado' AND fee_settled_at IS NULL"
+    )
+    .all(req.params.id);
+
+  if (pendingRides.length === 0) {
+    return res.status(400).json({ error: "No hay viajes pendientes de cobrar" });
+  }
+
+  const amount = pendingRides.length * SERVICE_FEE;
+  db.prepare(
+    "UPDATE rides SET fee_settled_at = datetime('now') WHERE driver_id = ? AND status = 'completado' AND fee_settled_at IS NULL"
+  ).run(req.params.id);
+  db.prepare(
+    "INSERT INTO driver_payments (driver_id, amount, concept, ride_count) VALUES (?, ?, 'viajes', ?)"
+  ).run(req.params.id, amount, pendingRides.length);
+
+  res.json({ ok: true, count: pendingRides.length, amount });
+});
+
 router.post("/admin/drivers/:id/payments", checkAdminPin, (req, res) => {
   const payments = db
     .prepare(
-      "SELECT id, amount, period_start, period_end, paid_at FROM driver_payments WHERE driver_id = ? ORDER BY paid_at DESC"
+      "SELECT id, amount, period_start, period_end, paid_at, concept, ride_count FROM driver_payments WHERE driver_id = ? ORDER BY paid_at DESC"
     )
     .all(req.params.id);
   res.json(payments);
