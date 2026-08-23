@@ -70,7 +70,13 @@ router.post("/admin/drivers", checkAdminPin, (req, res) => {
 router.post("/admin/drivers/list", checkAdminPin, (req, res) => {
   const drivers = db
     .prepare(
-      "SELECT id, name, phone, vehicle, pin, status, last_seen, paid_until, vouched_by, vouched_at, tipo, photo, vehicle_type, cancel_count, cooldown_until, grupo, created_at FROM drivers WHERE deleted_at IS NULL ORDER BY created_at DESC"
+      `SELECT d.id, d.name, d.phone, d.vehicle, d.pin, d.status, d.last_seen, d.paid_until, d.vouched_by, d.vouched_at,
+              d.tipo, d.photo, d.vehicle_type, d.cancel_count, d.cooldown_until, d.grupo, d.created_at,
+              (SELECT amount FROM driver_payments WHERE driver_id = d.id ORDER BY paid_at DESC LIMIT 1) AS last_payment_amount,
+              (SELECT paid_at FROM driver_payments WHERE driver_id = d.id ORDER BY paid_at DESC LIMIT 1) AS last_payment_at
+       FROM drivers d
+       WHERE d.deleted_at IS NULL
+       ORDER BY d.created_at DESC`
     )
     .all();
   res.json(drivers);
@@ -83,6 +89,40 @@ router.post("/admin/drivers/:id/paid-until", checkAdminPin, (req, res) => {
     req.params.id
   );
   res.json({ ok: true });
+});
+
+router.post("/admin/drivers/:id/register-payment", checkAdminPin, (req, res) => {
+  const driver = db.prepare("SELECT id, paid_until FROM drivers WHERE id = ?").get(req.params.id);
+  if (!driver) {
+    return res.status(404).json({ error: "Chofer no encontrado" });
+  }
+
+  const amount = Number(req.body.amount);
+  if (!amount || amount <= 0) {
+    return res.status(400).json({ error: "Monto inválido" });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const base = driver.paid_until && driver.paid_until > today ? driver.paid_until : today;
+  const periodEnd = new Date(base);
+  periodEnd.setDate(periodEnd.getDate() + 30);
+  const periodEndStr = periodEnd.toISOString().slice(0, 10);
+
+  db.prepare(
+    "INSERT INTO driver_payments (driver_id, amount, period_start, period_end) VALUES (?, ?, ?, ?)"
+  ).run(req.params.id, amount, base, periodEndStr);
+  db.prepare("UPDATE drivers SET paid_until = ? WHERE id = ?").run(periodEndStr, req.params.id);
+
+  res.json({ ok: true, paidUntil: periodEndStr });
+});
+
+router.post("/admin/drivers/:id/payments", checkAdminPin, (req, res) => {
+  const payments = db
+    .prepare(
+      "SELECT id, amount, period_start, period_end, paid_at FROM driver_payments WHERE driver_id = ? ORDER BY paid_at DESC"
+    )
+    .all(req.params.id);
+  res.json(payments);
 });
 
 router.post("/admin/drivers/:id/vouch", checkAdminPin, (req, res) => {
@@ -213,8 +253,14 @@ router.post("/admin/stats", checkAdminPin, (req, res) => {
     )
     .get();
   const satisfactionPct = ratings.total > 0 ? Math.round((ratings.good / ratings.total) * 100) : null;
+  const collectedWeek = db
+    .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM driver_payments WHERE date(paid_at) >= date('now', '-6 days')")
+    .get().total;
+  const collectedMonth = db
+    .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM driver_payments WHERE date(paid_at) >= date('now', '-29 days')")
+    .get().total;
 
-  res.json({ ridesToday, ridesWeek, cancelledToday, driversOnline, topDrivers, satisfactionPct, ratedCount: ratings.total });
+  res.json({ ridesToday, ridesWeek, cancelledToday, driversOnline, topDrivers, satisfactionPct, ratedCount: ratings.total, collectedWeek, collectedMonth });
 });
 
 module.exports = router;
