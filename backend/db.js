@@ -187,4 +187,22 @@ try {
   // la columna ya existe
 }
 
+try {
+  db.exec("ALTER TABLE rides ADD COLUMN fee_settled_at TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE driver_payments ADD COLUMN concept TEXT NOT NULL DEFAULT 'mensual'");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE driver_payments ADD COLUMN ride_count INTEGER");
+} catch {
+  // la columna ya existe
+}
+
 module.exports = db;
