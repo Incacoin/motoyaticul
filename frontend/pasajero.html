@@ -670,13 +670,23 @@ function onDriverLocation({ lat, lng }) {
   if (!routeRefreshInterval) startRouteTracking();
 }
 
-const FREQUENT_RIDER_THRESHOLD = 15;
+// 3 niveles nomás — con muchas insignias ninguna se siente especial.
+const RIDER_TIERS = [
+  { min: 30, label: "🥇 Pasajero VIP" },
+  { min: 15, label: "🥈 Pasajero frecuente" },
+  { min: 5, label: "🥉 Cliente recurrente" },
+];
+
+function riderTierLabel(count) {
+  const tier = RIDER_TIERS.find((t) => count >= t.min);
+  return tier ? tier.label : null;
+}
 
 function showTripCountBadge(count) {
   const el = document.getElementById("tripCountBadge");
   if (count == null) { el.style.display = "none"; return; }
-  const badge = count >= FREQUENT_RIDER_THRESHOLD ? " · 🏆 Pasajero frecuente" : "";
-  el.textContent = `Llevas ${count} viaje${count === 1 ? "" : "s"} con MotoYaTicul${badge}`;
+  const tier = riderTierLabel(count);
+  el.textContent = `Llevas ${count} viaje${count === 1 ? "" : "s"} con MotoYaTicul${tier ? " · " + tier : ""}`;
   el.style.display = "block";
 }
 
