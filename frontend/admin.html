@@ -639,6 +639,9 @@ function renderDriverRows() {
         ${pendingFeesLabel}
         ${pendingRides > 0 ? `<button class="btn-sm" onclick="registerTripFees(${d.id})">Cobrar viajes ($${pendingFeeAmount})</button>` : ""}
         <button class="histLink" onclick="showPaymentsModal(${d.id}, '${d.name.replace(/'/g, "\\'")}')">Ver historial</button>
+        <div class="payRow">
+          <button class="btn-sm wa" onclick="sendPaymentReminder(${d.id})">📱 Recordatorio pago</button>
+        </div>
       </td>
       <td>
         <div class="vouchRow">
@@ -719,6 +722,37 @@ async function registerPayment(id) {
   showToast(`Pago registrado, vigente hasta ${paidUntil}`);
   loadDrivers();
   loadStats();
+}
+
+function paymentReminderMessage(d) {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthlyVencido = !d.paid_until || d.paid_until < today;
+  const pendingRides = d.pending_rides || 0;
+  const feeAmount = pendingRides * SERVICE_FEE;
+
+  const lines = [];
+  lines.push(
+    monthlyVencido
+      ? `• Cuota mensual: vencida ($100 MXN)`
+      : `• Cuota mensual: vigente hasta ${d.paid_until}`
+  );
+  lines.push(
+    pendingRides > 0
+      ? `• Viajes por cobrar: ${pendingRides} × $${SERVICE_FEE} = $${feeAmount} MXN`
+      : `• Viajes: sin pendientes`
+  );
+
+  const total = (monthlyVencido ? 100 : 0) + feeAmount;
+  const totalLine = total > 0 ? `\nTotal a pagar: $${total} MXN\n` : "";
+  const leaderName = d.vouched_by || "tu líder de gremio";
+
+  return `Hola ${d.name}, aquí tu resumen de MotoYaTicul:\n\n${lines.join("\n")}\n${totalLine}\nEntrégaselo a ${leaderName} como de costumbre. ¡Gracias por seguir con nosotros!`;
+}
+
+function sendPaymentReminder(id) {
+  const d = driversCache.find((x) => x.id === id);
+  if (!d) return;
+  window.open(waLink(d.phone, paymentReminderMessage(d)), "_blank");
 }
 
 async function registerTripFees(id) {
