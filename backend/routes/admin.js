@@ -1,6 +1,6 @@
 const express = require("express");
 const db = require("../db");
-const { AVISO_LEGAL_VERSION, SERVICE_FEE } = require("../constants");
+const { AVISO_LEGAL_VERSION, SERVICE_FEE, LAUNCH_DATE, TRIAL_END_DATE } = require("../constants");
 
 const router = express.Router();
 
@@ -291,8 +291,21 @@ router.post("/admin/stats", checkAdminPin, (req, res) => {
   const collectedMonth = db
     .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM driver_payments WHERE date(paid_at) >= date('now', '-29 days')")
     .get().total;
+  const launchRanking = db
+    .prepare(
+      `SELECT d.id, d.name, COUNT(*) AS rides
+       FROM rides r JOIN drivers d ON d.id = r.driver_id
+       WHERE r.status = 'completado' AND date(r.updated_at) >= date(?) AND (r.rating IS NULL OR r.rating = 1)
+       GROUP BY r.driver_id
+       ORDER BY rides DESC
+       LIMIT 5`
+    )
+    .all(LAUNCH_DATE);
 
-  res.json({ ridesToday, ridesWeek, cancelledToday, driversOnline, topDrivers, satisfactionPct, ratedCount: ratings.total, collectedWeek, collectedMonth });
+  res.json({
+    ridesToday, ridesWeek, cancelledToday, driversOnline, topDrivers, satisfactionPct, ratedCount: ratings.total,
+    collectedWeek, collectedMonth, launchRanking, trialEndDate: TRIAL_END_DATE,
+  });
 });
 
 module.exports = router;
