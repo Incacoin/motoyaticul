@@ -230,15 +230,33 @@ function notifyRide(rideId, type, payload) {
   for (const ws of clients) send(ws, type, payload);
 }
 
+// Un chofer que dejó su sesión "disponible" mientras anda en otro pueblo (o
+// simplemente muy lejos de la recogida) no debería poder recibir ni aceptar
+// un viaje que nunca podría cubrir de verdad.
+const MAX_MATCH_DISTANCE_KM = 8;
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function broadcastNewRide(ride) {
   const rideType = ride.ride_type === "taxi" ? "taxi" : "moto";
   const available = db
     .prepare(
-      "SELECT id FROM drivers WHERE status = 'disponible' AND vehicle_type = ? AND (cooldown_until IS NULL OR cooldown_until <= datetime('now'))"
+      "SELECT id, lat, lng FROM drivers WHERE status = 'disponible' AND vehicle_type = ? AND (cooldown_until IS NULL OR cooldown_until <= datetime('now'))"
     )
     .all(rideType);
-  for (const { id } of available) {
-    const ws = driverSockets.get(id);
+  for (const driver of available) {
+    if (driver.lat == null || driver.lng == null) continue;
+    const distanceKm = haversineKm(ride.pickup_lat, ride.pickup_lng, driver.lat, driver.lng);
+    if (distanceKm > MAX_MATCH_DISTANCE_KM) continue;
+    const ws = driverSockets.get(driver.id);
     if (ws) send(ws, "new_ride", ride);
   }
 }
