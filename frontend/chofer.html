@@ -287,7 +287,7 @@ function isNightFare() {
 function estimateFare(ride) {
   const passengers = ride.passengers || 1;
   if (ride.ride_type === "taxi") {
-    return `Viaje foráneo · acuerda el precio con el pasajero · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
+    return `Viaje foráneo · acuerda el precio con el pasajero + $${SERVICE_FEE} de servicio · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
   }
   const night = isNightFare();
   let pricePerPerson = night ? NIGHT_FARE : FARE_NORMAL;
@@ -296,7 +296,7 @@ function estimateFare(ride) {
     const tripKm = haversine(ride.pickup_lat, ride.pickup_lng, ride.dest_lat, ride.dest_lng);
     approx = false;
     if (tripKm > FARE_THRESHOLD_KM) {
-      return `Viaje largo · acuerda el precio con el pasajero · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
+      return `Viaje largo · acuerda el precio con el pasajero + $${SERVICE_FEE} de servicio · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
     }
     pricePerPerson = night ? NIGHT_FARE : (tripKm > FARE_SHORT_KM ? FARE_NORMAL : FARE_SHORT);
   }
