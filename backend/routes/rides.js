@@ -49,16 +49,42 @@ router.post("/rides", (req, res) => {
   res.status(201).json(ride);
 });
 
+// Si un pasajero o chofer se quedó a medias (app cerrada, celular apagado,
+// etc.) el viaje se queda "vivo" para siempre y nadie puede pedir uno nuevo
+// ni el chofer vuelve a estar disponible. Cada vez que alguien consulta un
+// viaje que ya lleva demasiado tiempo sin terminar, se da por abandonado
+// aquí mismo — no hace falta un proceso aparte corriendo en segundo plano.
+const ABANDONED_AFTER_MIN = 60;
+
 router.get("/rides/:id", (req, res) => {
-  const ride = db
-    .prepare("SELECT * FROM rides WHERE id = ?")
-    .get(req.params.id);
+  let ride = db.prepare("SELECT * FROM rides WHERE id = ?").get(req.params.id);
   if (!ride) return res.status(404).json({ error: "Viaje no encontrado" });
+
+  if (!["completado", "cancelado"].includes(ride.status)) {
+    const { mins } = db
+      .prepare(
+        "SELECT (julianday('now') - julianday(created_at)) * 24 * 60 AS mins FROM rides WHERE id = ?"
+      )
+      .get(ride.id);
+    if (mins > ABANDONED_AFTER_MIN) {
+      db.prepare(
+        "UPDATE rides SET status = 'cancelado', updated_at = datetime('now'), cancelled_by = ?, cancel_reason = ? WHERE id = ?"
+      ).run("system", `Abandonado automáticamente tras ${ABANDONED_AFTER_MIN} min sin completarse`, ride.id);
+      if (ride.driver_id) {
+        db.prepare("UPDATE drivers SET status = 'disponible' WHERE id = ?").run(ride.driver_id);
+        realtime.notifyDriver(ride.driver_id, "ride_cancelled", { rideId: ride.id });
+      }
+      realtime.clearDisconnectTimer(ride.id);
+      realtime.clearNoDriverTimer(ride.id);
+      realtime.clearPreAcceptContact(ride.id);
+      ride = db.prepare("SELECT * FROM rides WHERE id = ?").get(ride.id);
+    }
+  }
 
   if (ride.driver_id) {
     ride.driver = db
       .prepare(
-        "SELECT id, name, phone, vehicle, lat, lng, photo FROM drivers WHERE id = ?"
+        "SELECT id, name, phone, vehicle, grupo, lat, lng, photo FROM drivers WHERE id = ?"
       )
       .get(ride.driver_id);
   }
@@ -89,7 +115,7 @@ router.post("/rides/:id/accept", (req, res) => {
   const ride = db.prepare("SELECT * FROM rides WHERE id = ?").get(rideId);
   const driver = db
     .prepare(
-      "SELECT id, name, phone, vehicle, lat, lng, photo FROM drivers WHERE id = ?"
+      "SELECT id, name, phone, vehicle, grupo, lat, lng, photo FROM drivers WHERE id = ?"
     )
     .get(driverId);
 
