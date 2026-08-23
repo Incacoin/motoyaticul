@@ -1,4 +1,6 @@
 module.exports = {
   AVISO_LEGAL_VERSION: "2026-08-21",
   SERVICE_FEE: 2,
+  LAUNCH_DATE: "2026-08-21",
+  TRIAL_END_DATE: "2026-09-20",
 };
