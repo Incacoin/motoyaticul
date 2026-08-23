@@ -297,7 +297,7 @@ function updateFareEstimate() {
   const el = document.getElementById("fareEstimate");
   if (!pickup) { el.textContent = ""; return; }
   if (serviceType === "taxi") {
-    el.textContent = "Viaje foráneo: acuerda el precio directo con el chofer";
+    el.textContent = `Viaje foráneo: acuerda el precio directo con el chofer + $${SERVICE_FEE} de servicio de la app`;
     return;
   }
   const night = isNightFare();
@@ -307,7 +307,7 @@ function updateFareEstimate() {
     const tripKm = haversine(pickup.lat, pickup.lng, dest.lat, dest.lng);
     approx = false;
     if (tripKm > FARE_THRESHOLD_KM) {
-      el.textContent = "Viaje largo: acuerda el precio directo con el chofer";
+      el.textContent = `Viaje largo: acuerda el precio directo con el chofer + $${SERVICE_FEE} de servicio de la app`;
       return;
     }
     pricePerPerson = night ? NIGHT_FARE : (tripKm > FARE_SHORT_KM ? FARE_NORMAL : FARE_SHORT);
@@ -587,7 +587,8 @@ async function onDriverAssigned(driver) {
       <div>
         <div class="name">${driver.name}</div>
         ${badgeHtml}
-        <div class="meta">${driver.vehicle || (serviceType === "taxi" ? "Taxi" : "Mototaxi")}</div>
+        ${driver.grupo ? `<div class="meta">Agrupación: ${driver.grupo}</div>` : ""}
+        <div class="meta">${driver.vehicle ? `Placa: ${driver.vehicle}` : (serviceType === "taxi" ? "Taxi" : "Mototaxi")}</div>
         <div class="meta">Tel: ${driver.phone}</div>
       </div>
     </div>`;
