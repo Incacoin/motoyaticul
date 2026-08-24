@@ -7,19 +7,32 @@ if (fs.existsSync(path.join(__dirname, ".env"))) {
   process.loadEnvFile(path.join(__dirname, ".env"));
 }
 
+const db = require("./db");
 const driverRoutes = require("./routes/drivers");
 const rideRoutes = require("./routes/rides");
 const adminRoutes = require("./routes/admin");
 const realtime = require("./realtime");
+const { startBackupSchedule } = require("./backup");
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
 
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
+app.get("/api/health", (req, res) => {
+  try {
+    db.prepare("SELECT 1").get();
+    res.json({ status: "ok" });
+  } catch (err) {
+    res.status(500).json({ status: "error" });
+  }
+});
+
 app.use("/api", driverRoutes);
 app.use("/api", rideRoutes);
 app.use("/api", adminRoutes);
+
+startBackupSchedule(6);
 
 const server = http.createServer(app);
 realtime.attach(server);
