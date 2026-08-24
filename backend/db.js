@@ -1,5 +1,6 @@
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
+const { LAUNCH_DATE } = require("./constants");
 
 const dbPath = path.join(__dirname, "data", "motoya.db");
 const db = new DatabaseSync(dbPath);
@@ -192,6 +193,13 @@ try {
 } catch {
   // la columna ya existe
 }
+
+// Los viajes completados antes de LAUNCH_DATE son de antes de que existiera
+// la cuota de $2/viaje — se marcan como ya liquidados para que no aparezcan
+// como "viajes sin cobrar" la primera vez que carga el admin con esta feature.
+db.prepare(
+  "UPDATE rides SET fee_settled_at = updated_at WHERE status = 'completado' AND fee_settled_at IS NULL AND date(updated_at) < date(?)"
+).run(LAUNCH_DATE);
 
 try {
   db.exec("ALTER TABLE driver_payments ADD COLUMN concept TEXT NOT NULL DEFAULT 'mensual'");
