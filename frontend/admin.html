@@ -138,7 +138,7 @@
   </div>
 
   <h1>🏆 Ranking de lanzamiento</h1>
-  <p class="section-hint">Desde el 21 de agosto. El Top 5 no paga su primer mes de mensualidad; el 🥇 primer lugar además gana un bono de $500 MXN.</p>
+  <p class="section-hint">Desde el 21 de agosto. El Top 5 no paga su primer mes de mensualidad; el 🥇 primer lugar además gana un bono de $500 MXN. Solo cuentan los viajes sin calificación mala — por eso este número puede no coincidir con "Choferes más activos".</p>
   <div class="top-drivers" id="launchRanking" style="margin-bottom:30px;"></div>
 
   <h1>Solicitudes de chofer</h1>
@@ -232,7 +232,12 @@
 
 <script>
 const API = "";
-const SERVICE_FEE = 2;
+let SERVICE_FEE = 2; // valores de respaldo hasta que cargue /api/config
+let MONTHLY_FEE = 100;
+fetch(API + "/api/config").then((r) => r.json()).then((cfg) => {
+  SERVICE_FEE = cfg.serviceFee;
+  MONTHLY_FEE = cfg.monthlyFee;
+}).catch(() => {});
 let adminPin = null;
 let launchRankingCache = [];
 let trialEndDateCache = "2026-09-20";
@@ -652,11 +657,11 @@ function renderDriverRows() {
         ${statusLabel}
         <div class="payRow">
           <input type="number" id="payAmount-${d.id}" value="100" min="1" />
-          <button class="btn-sm" onclick="registerPayment(${d.id})">Registrar pago</button>
+          <button class="btn-sm" id="payBtn-${d.id}" onclick="registerPayment(${d.id})">Registrar pago</button>
         </div>
         ${lastPaymentLabel}
         ${pendingFeesLabel}
-        ${pendingRides > 0 ? `<button class="btn-sm" onclick="registerTripFees(${d.id})">Cobrar viajes ($${pendingFeeAmount})</button>` : ""}
+        ${pendingRides > 0 ? `<button class="btn-sm" id="feesBtn-${d.id}" onclick="registerTripFees(${d.id})">Cobrar viajes ($${pendingFeeAmount})</button>` : ""}
         <button class="histLink" onclick="showPaymentsModal(${d.id}, '${d.name.replace(/'/g, "\\'")}')">Ver historial</button>
         <div class="payRow">
           <button class="btn-sm wa" onclick="sendPaymentReminder(${d.id})">📱 Recordatorio pago</button>
@@ -722,25 +727,43 @@ async function savePaidUntil(id) {
   loadDrivers();
 }
 
+const pendingPaymentActions = new Set();
+
 async function registerPayment(id) {
+  if (pendingPaymentActions.has(`pay-${id}`)) return;
   const amount = Number(document.getElementById(`payAmount-${id}`).value);
   if (!amount || amount <= 0) {
     showToast("Escribe un monto válido");
     return;
   }
+  pendingPaymentActions.add(`pay-${id}`);
+  const btn = document.getElementById(`payBtn-${id}`);
+  if (btn) btn.disabled = true;
+
   const res = await fetch(API + `/api/admin/drivers/${id}/register-payment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ adminPin, amount }),
   });
+  pendingPaymentActions.delete(`pay-${id}`);
   if (!res.ok) {
+    if (btn) btn.disabled = false;
     showToast((await res.json()).error || "No se pudo registrar el pago");
     return;
   }
   const { paidUntil } = await res.json();
   showToast(`Pago registrado, vigente hasta ${paidUntil}`);
-  loadDrivers();
+  loadDrivers(); // el re-render deja el botón fresco y habilitado
   loadStats();
+}
+
+// Meses realmente vencidos desde que se venció la cuota (o desde que acabó
+// el mes de prueba, si nunca ha pagado) — así el recordatorio no subestima
+// a un chofer que lleva 2+ meses sin pagar.
+function monthsOverdue(d, today) {
+  const base = d.paid_until || trialEndDateCache;
+  const diffDays = (Date.parse(today) - Date.parse(base)) / 86400000;
+  return Math.max(1, Math.ceil(diffDays / 30));
 }
 
 function paymentReminderMessage(d) {
@@ -749,6 +772,8 @@ function paymentReminderMessage(d) {
   const pendingRides = d.pending_rides || 0;
   const feeAmount = pendingRides * SERVICE_FEE;
   const monthlyVencido = !inTrial && (!d.paid_until || d.paid_until < today);
+  const owedMonths = monthlyVencido ? monthsOverdue(d, today) : 0;
+  const monthlyAmount = owedMonths * MONTHLY_FEE;
 
   const lines = [];
   if (inTrial && !d.paid_until) {
@@ -756,7 +781,7 @@ function paymentReminderMessage(d) {
   } else {
     lines.push(
       monthlyVencido
-        ? `• Cuota mensual: vencida ($100 MXN)`
+        ? `• Cuota mensual: vencida (${owedMonths} mes${owedMonths > 1 ? "es" : ""} × $${MONTHLY_FEE} = $${monthlyAmount} MXN)`
         : `• Cuota mensual: vigente hasta ${d.paid_until}`
     );
   }
@@ -774,7 +799,7 @@ function paymentReminderMessage(d) {
     rankingNote = `\n🏆 ¡Vas en el Top 5 del ranking de lanzamiento! Si te mantienes ahí, tu primer mes de mensualidad es GRATIS 🎉\n`;
   }
 
-  const total = (monthlyVencido ? 100 : 0) + feeAmount;
+  const total = monthlyAmount + feeAmount;
   const totalLine = total > 0 ? `\nTotal a pagar: $${total} MXN\n` : "";
   const leaderName = d.vouched_by || "tu líder de gremio";
 
@@ -788,18 +813,25 @@ function sendPaymentReminder(id) {
 }
 
 async function registerTripFees(id) {
+  if (pendingPaymentActions.has(`fees-${id}`)) return;
+  pendingPaymentActions.add(`fees-${id}`);
+  const btn = document.getElementById(`feesBtn-${id}`);
+  if (btn) btn.disabled = true;
+
   const res = await fetch(API + `/api/admin/drivers/${id}/register-trip-fees`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ adminPin }),
   });
+  pendingPaymentActions.delete(`fees-${id}`);
   if (!res.ok) {
+    if (btn) btn.disabled = false;
     showToast((await res.json()).error || "No se pudo registrar el cobro");
     return;
   }
   const { count, amount } = await res.json();
   showToast(`Cobrado: ${count} viajes × $${SERVICE_FEE} = $${amount}`);
-  loadDrivers();
+  loadDrivers(); // el re-render deja el botón fresco y habilitado
   loadStats();
 }
 
