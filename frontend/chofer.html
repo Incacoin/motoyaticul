@@ -128,6 +128,7 @@
 <script>
 const API = "";
 let deferredInstallPrompt = null;
+fetch(API + "/api/config").then((r) => r.json()).then((cfg) => { SERVICE_FEE = cfg.serviceFee; }).catch(() => {});
 
 function isStandalone() {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -277,7 +278,7 @@ const FARE_SHORT_KM = 0.5;
 const FARE_SHORT = 10;
 const FARE_THRESHOLD_KM = 1.5;
 const FARE_NORMAL = 15;
-const SERVICE_FEE = 2;
+let SERVICE_FEE = 2; // valor de respaldo hasta que cargue /api/config
 const NIGHT_FARE = 20;
 
 function isNightFare() {
@@ -357,7 +358,8 @@ function startApp() {
 }
 
 async function loadOtherDrivers() {
-  const res = await fetch(API + `/api/drivers/available?type=${driver.vehicle_type}`);
+  const refQuery = myPos ? `&lat=${myPos.lat}&lng=${myPos.lng}` : "";
+  const res = await fetch(API + `/api/drivers/available?type=${driver.vehicle_type}${refQuery}`);
   if (!res.ok) return;
   const drivers = (await res.json()).filter((d) => d.id !== driver.id);
   const seen = new Set();
