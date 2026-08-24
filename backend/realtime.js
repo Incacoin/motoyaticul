@@ -1,6 +1,8 @@
 const { WebSocketServer } = require("ws");
 const url = require("node:url");
 const db = require("./db");
+const { haversineKm } = require("./geo");
+const { MAX_MATCH_DISTANCE_KM } = require("./constants");
 
 // driverId -> WebSocket
 const driverSockets = new Map();
@@ -228,21 +230,6 @@ function notifyRide(rideId, type, payload) {
   const clients = rideSubscribers.get(rideId);
   if (!clients) return;
   for (const ws of clients) send(ws, type, payload);
-}
-
-// Un chofer que dejó su sesión "disponible" mientras anda en otro pueblo (o
-// simplemente muy lejos de la recogida) no debería poder recibir ni aceptar
-// un viaje que nunca podría cubrir de verdad.
-const MAX_MATCH_DISTANCE_KM = 8;
-
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function broadcastNewRide(ride) {
