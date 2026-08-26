@@ -584,7 +584,9 @@ const RANK_EMOJI = { 1: "🥇", 2: "🥈", 3: "🥉" };
 async function onDriverAssigned(driver) {
   currentRideStatus = "aceptado";
   document.getElementById("statusText").textContent = "¡Chofer en camino!";
-  document.getElementById("cancelBtn").style.display = "none";
+  const cancelBtnEl = document.getElementById("cancelBtn");
+  cancelBtnEl.style.display = "inline-block";
+  cancelBtnEl.textContent = "🚪 Salir del viaje";
   const card = document.getElementById("driverCard");
   card.style.display = "block";
   let badgeHtml = "";
@@ -654,9 +656,6 @@ function onDriverDisconnected() {
 
 function onDriverReconnected() {
   document.getElementById("connWarning").style.display = "none";
-  if (!["completado", "cancelado"].includes(currentRideStatus)) {
-    document.getElementById("cancelBtn").style.display = "none";
-  }
 }
 
 function onDriverLost() {
@@ -841,6 +840,7 @@ function reportViaWhatsapp() {
 
 async function cancelRide() {
   if (!ride) return;
+  const wasActive = ["aceptado", "llegue", "en_curso"].includes(currentRideStatus);
   currentRideStatus = "cancelado";
   localStorage.removeItem("motoya_active_ride");
   stopRouteTracking();
@@ -848,7 +848,10 @@ async function cancelRide() {
   await fetch(API + `/api/rides/${ride.id}/cancel`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cancelledBy: "rider" }),
+    body: JSON.stringify({
+      cancelledBy: "rider",
+      reason: wasActive ? "Pasajero salió del viaje ya en curso" : null,
+    }),
   });
   document.getElementById("statusText").textContent = "Viaje cancelado.";
   document.getElementById("connWarning").style.display = "none";
