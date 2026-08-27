@@ -1,6 +1,6 @@
 const express = require("express");
 const db = require("../db");
-const { AVISO_LEGAL_VERSION, MAX_MATCH_DISTANCE_KM, SERVICE_CENTER, DRIVER_STALE_SECONDS, SERVICE_FEE, MONTHLY_FEE } = require("../constants");
+const { AVISO_LEGAL_VERSION, MAX_MATCH_DISTANCE_KM, SERVICE_CENTER, DRIVER_STALE_SECONDS, SERVICE_FEE, MONTHLY_FEE, TRIAL_END_DATE } = require("../constants");
 const { haversineKm } = require("../geo");
 
 const router = express.Router();
@@ -94,6 +94,98 @@ router.post("/drivers/login", (req, res) => {
     .get(driver.id);
 
   res.json({ ...driver, todayCount, lifetimeTrips });
+});
+
+// Pantalla "Mi perfil" del chofer. Se autentica igual que el login: con su
+// propio PIN — nunca con un id que mande el cliente, para que nadie pueda
+// pedir el perfil (ni el estado de cuenta) de otro chofer.
+router.post("/drivers/profile", (req, res) => {
+  const { pin } = req.body;
+  const driver = db
+    .prepare(
+      `SELECT id, name, phone, vehicle, vehicle_type, grupo, photo, tipo, pin, created_at,
+              paid_until, cancel_count
+       FROM drivers WHERE pin = ? AND deleted_at IS NULL`
+    )
+    .get(pin);
+
+  if (!driver) {
+    return res.status(404).json({ error: "PIN no encontrado" });
+  }
+
+  const stats = db
+    .prepare(
+      `SELECT COUNT(*) AS lifetimeTrips,
+              SUM(CASE WHEN date(updated_at) >= date('now', 'start of month') THEN 1 ELSE 0 END) AS tripsMonth,
+              SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS thumbsUp,
+              SUM(CASE WHEN rating IS NOT NULL THEN 1 ELSE 0 END) AS ratedCount
+       FROM rides WHERE driver_id = ? AND status = 'completado'`
+    )
+    .get(driver.id);
+
+  const lastPayment = db
+    .prepare(
+      "SELECT amount, paid_at FROM driver_payments WHERE driver_id = ? ORDER BY paid_at DESC LIMIT 1"
+    )
+    .get(driver.id);
+
+  // Viajes completados que todavía no se le han cobrado los $2 de servicio.
+  // En un pueblo sin cuota por viaje (SERVICE_FEE = 0) esta sección ni existe,
+  // y su tabla `rides` puede no tener la columna `fee_settled_at`.
+  const pendingRides = SERVICE_FEE
+    ? db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM rides WHERE driver_id = ? AND status = 'completado' AND fee_settled_at IS NULL"
+        )
+        .get(driver.id).count
+    : 0;
+
+  res.json({
+    id: driver.id,
+    name: driver.name,
+    phone: driver.phone,
+    vehicle: driver.vehicle,
+    vehicleType: driver.vehicle_type,
+    grupo: driver.grupo,
+    photo: driver.photo,
+    pin: driver.pin,
+    createdAt: driver.created_at,
+    cancelCount: driver.cancel_count,
+    lifetimeTrips: stats.lifetimeTrips || 0,
+    tripsMonth: stats.tripsMonth || 0,
+    ratedCount: stats.ratedCount || 0,
+    ratingPct: stats.ratedCount ? Math.round((stats.thumbsUp / stats.ratedCount) * 100) : null,
+    paidUntil: driver.paid_until,
+    lastPayment: lastPayment || null,
+    monthlyFee: MONTHLY_FEE,
+    trialEndDate: TRIAL_END_DATE,
+    pendingRides,
+    pendingRidesAmount: pendingRides * SERVICE_FEE,
+    serviceFee: SERVICE_FEE,
+  });
+});
+
+// La foto es lo único que el chofer puede cambiar de su propio perfil.
+// Nombre, placa, agrupación y tipo de vehículo los avaló su líder y solo se
+// tocan desde el admin — si el chofer pudiera cambiarlos, el aval no valdría.
+router.post("/drivers/photo", (req, res) => {
+  const { pin, photo } = req.body;
+  const driver = db
+    .prepare("SELECT id FROM drivers WHERE pin = ? AND deleted_at IS NULL")
+    .get(pin);
+
+  if (!driver) {
+    return res.status(404).json({ error: "PIN no encontrado" });
+  }
+  if (typeof photo !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(photo)) {
+    return res.status(400).json({ error: "Foto inválida" });
+  }
+  if (photo.length > 900000) {
+    return res.status(413).json({ error: "La foto pesa demasiado, intenta con otra" });
+  }
+
+  db.prepare("UPDATE drivers SET photo = ? WHERE id = ?").run(photo, driver.id);
+  res.json({ ok: true });
 });
 
 router.post("/chofer-solicitudes", (req, res) => {

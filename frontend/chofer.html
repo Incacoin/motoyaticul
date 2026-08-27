@@ -55,6 +55,31 @@
   .cancel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: flex-end; justify-content: center; z-index: 500; }
   .cancel-sheet { width: 100%; max-width: 420px; margin: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
   .cancel-sheet .label { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+  /* z-index > 1000 a propósito: Leaflet pinta sus controles (+/-, atribución)
+     en 1000 y los dejaría encima de esta pantalla. */
+  #profileScreen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 1500; overflow-y: auto; }
+  .profile-inner { max-width: 460px; margin: 0 auto; padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+  .profile-head { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; }
+  .profile-head .title { font-weight: 700; font-size: 18px; }
+  .profile-photo-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  #profilePhoto { width: 108px; height: 108px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); background: var(--bg-card); }
+  .profile-photo-fallback { width: 108px; height: 108px; border-radius: 50%; border: 3px dashed var(--border); display: flex; align-items: center; justify-content: center; font-size: 42px; background: var(--bg-card); }
+  .profile-name { font-weight: 700; font-size: 17px; text-align: center; }
+  .profile-sub { color: var(--text-dim); font-size: 13.5px; text-align: center; }
+  .profile-card { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .profile-card .card-title { font-weight: 700; font-size: 14px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+  .prow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 14.5px; }
+  .prow .k { color: var(--text-dim); }
+  .prow .v { font-weight: 700; text-align: right; }
+  .prow .v.accent { color: var(--accent); }
+  .prow .v.ok { color: var(--success); }
+  .prow .v.warn { color: var(--danger); }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { background: var(--bg-card-hover); border-radius: var(--radius-sm); padding: 10px 6px; text-align: center; }
+  .stat .n { font-weight: 800; font-size: 19px; color: var(--accent); }
+  .stat .l { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; line-height: 1.25; }
+  .profile-note { font-size: 12.5px; color: var(--text-faint); line-height: 1.45; }
+  .pin-box { font-family: ui-monospace, monospace; font-size: 22px; letter-spacing: 5px; font-weight: 800; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -87,7 +112,10 @@
         <span>Disponible</span>
         <div id="switch" onclick="toggleAvailable()"><div class="knob"></div></div>
       </div>
-      <button onclick="logout()" style="background:none;border:none;color:var(--text-faint);font-size:12px;cursor:pointer;padding:0;">Cerrar sesión</button>
+      <div style="display:flex;gap:10px;">
+        <button onclick="openProfile()" style="background:none;border:none;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;padding:0;">Mi perfil</button>
+        <button onclick="logout()" style="background:none;border:none;color:var(--text-faint);font-size:12px;cursor:pointer;padding:0;">Cerrar sesión</button>
+      </div>
     </div>
   </div>
   <div id="map"></div>
@@ -101,6 +129,56 @@
       </div>
     </div>
     <div class="credit footer-credit">⚡ Tecnología de <strong>Lealtad Digital</strong></div>
+  </div>
+</div>
+
+<div id="profileScreen">
+  <div class="profile-inner">
+    <div class="profile-head">
+      <div class="title">Mi perfil</div>
+      <button class="btn-sm" onclick="closeProfile()">Volver</button>
+    </div>
+
+    <div class="profile-photo-wrap">
+      <div id="profilePhotoSlot"></div>
+      <input type="file" id="profilePhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="handleProfilePhoto(event)" />
+      <button class="btn-sm" id="profilePhotoBtn" onclick="document.getElementById('profilePhotoInput').click()">📷 Cambiar mi foto</button>
+      <div class="profile-note" style="text-align:center;">Es la foto que ve el pasajero cuando aceptas su viaje.</div>
+      <div id="profilePhotoMsg" style="font-size:13px;min-height:16px;"></div>
+    </div>
+
+    <div class="profile-name" id="profileName"></div>
+    <div class="profile-sub" id="profileSub"></div>
+
+    <div class="card profile-card">
+      <div class="card-title">Mis números</div>
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="statLifetime">–</div><div class="l">Viajes en total</div></div>
+        <div class="stat"><div class="n" id="statMonth">–</div><div class="l">Este mes</div></div>
+        <div class="stat"><div class="n" id="statRating">–</div><div class="l">Calificación</div></div>
+      </div>
+      <div class="profile-note" id="ratingNote"></div>
+    </div>
+
+    <div class="card profile-card">
+      <div class="card-title">Mi cuenta</div>
+      <div id="accountRows"></div>
+      <div class="profile-note" id="accountNote"></div>
+    </div>
+
+    <div class="card profile-card">
+      <div class="card-title">Mis datos</div>
+      <div id="dataRows"></div>
+      <div class="profile-note">Si algo de aquí está mal, avísale a tu líder o al administrador — estos datos los registró quien te dio de alta.</div>
+    </div>
+
+    <div class="card profile-card">
+      <div class="card-title">Mi PIN de acceso</div>
+      <div class="pin-box" id="profilePin">••••</div>
+      <div class="profile-note">Con este PIN entras a la app. No se lo compartas a nadie: quien lo tenga puede recibir viajes a tu nombre.</div>
+    </div>
+
+    <div class="credit footer-credit" style="text-align:center;">⚡ Tecnología de <strong>Lealtad Digital</strong> · <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso legal</a></div>
   </div>
 </div>
 
@@ -318,6 +396,7 @@ async function login() {
     });
     if (!res.ok) throw new Error((await res.json()).error || "Error");
     driver = await res.json();
+    driver.pin = pin; // lo necesita "Mi perfil" para autenticarse igual que el login
     todayCount = driver.todayCount || 0;
     localStorage.setItem("motoya_driver", JSON.stringify(driver));
     startApp();
@@ -968,6 +1047,172 @@ function updateCooldownDisplay() {
   const mins = Math.floor(remainingMs / 60000);
   const secs = Math.floor((remainingMs % 60000) / 1000);
   document.getElementById("statusText").textContent = `En enfriamiento · ${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+/* ---------- Mi perfil ---------- */
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  // Una fecha sin hora ("2026-09-20") es un día del calendario, no un
+  // instante: hay que armarla como fecha local. Si se parsea como UTC, en
+  // México (UTC-6) se recorre un día hacia atrás y muestra el 19.
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  const d = dateOnly
+    ? new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)))
+    : new Date(iso.replace(" ", "T") + (iso.includes("T") ? "" : "Z"));
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function row(k, v, cls) {
+  return `<div class="prow"><span class="k">${k}</span><span class="v ${cls || ""}">${v}</span></div>`;
+}
+
+async function openProfile() {
+  document.getElementById("profileScreen").style.display = "block";
+  document.getElementById("profilePhotoMsg").textContent = "";
+  if (!driver || !driver.pin) {
+    // Sesión vieja guardada antes de que existiera esta pantalla: sin el PIN
+    // no hay forma de pedir el perfil, hay que volver a entrar.
+    document.getElementById("profileName").textContent = "Vuelve a entrar con tu PIN";
+    document.getElementById("profileSub").textContent = "Cierra sesión y entra otra vez para ver tu perfil.";
+    return;
+  }
+  try {
+    const res = await fetch(API + "/api/drivers/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: driver.pin }),
+    });
+    if (!res.ok) throw new Error("No se pudo cargar tu perfil");
+    renderProfile(await res.json());
+  } catch (e) {
+    document.getElementById("profileSub").textContent = e.message;
+  }
+}
+
+function closeProfile() {
+  document.getElementById("profileScreen").style.display = "none";
+}
+
+function renderProfile(p) {
+  const slot = document.getElementById("profilePhotoSlot");
+  slot.innerHTML = p.photo
+    ? `<img id="profilePhoto" src="${p.photo}" alt="Mi foto" />`
+    : `<div class="profile-photo-fallback">🛵</div>`;
+
+  document.getElementById("profileName").textContent = p.name;
+  document.getElementById("profileSub").textContent =
+    (p.vehicleType === "taxi" ? "🚕 Taxi" : "🛵 Moto") +
+    (p.grupo ? ` · ${p.grupo}` : "") +
+    (p.createdAt ? ` · Desde ${fmtDate(p.createdAt)}` : "");
+
+  document.getElementById("statLifetime").textContent = p.lifetimeTrips;
+  document.getElementById("statMonth").textContent = p.tripsMonth;
+  document.getElementById("statRating").textContent = p.ratingPct == null ? "–" : p.ratingPct + "%";
+  document.getElementById("ratingNote").textContent =
+    p.ratingPct == null
+      ? "Todavía no tienes calificaciones. Los pasajeros califican al terminar el viaje."
+      : `Basado en ${p.ratedCount} viaje${p.ratedCount === 1 ? "" : "s"} calificado${p.ratedCount === 1 ? "" : "s"}.`;
+
+  // --- Mi cuenta (estado de pago) ---
+  const rows = [];
+  const notes = [];
+  const today = new Date().toISOString().slice(0, 10);
+  const inTrial = p.trialEndDate && today <= p.trialEndDate;
+
+  if (inTrial) {
+    rows.push(row("Prueba gratis hasta", fmtDate(p.trialEndDate), "ok"));
+    notes.push(`Durante la prueba no pagas nada. Después son $${p.monthlyFee} al mes.`);
+  } else if (p.paidUntil) {
+    const alDia = today <= p.paidUntil;
+    rows.push(row("Vigente hasta", fmtDate(p.paidUntil), alDia ? "ok" : "warn"));
+    if (!alDia) notes.push("Tu mensualidad está vencida — ponte al corriente con tu líder.");
+  } else {
+    rows.push(row("Mensualidad", `$${p.monthlyFee} al mes`, "accent"));
+    notes.push("Todavía no tienes un pago registrado.");
+  }
+
+  if (p.lastPayment) {
+    rows.push(row("Último pago", `$${p.lastPayment.amount} · ${fmtDate(p.lastPayment.paid_at)}`));
+  }
+
+  if (p.serviceFee > 0) {
+    rows.push(
+      row(
+        `Viajes sin liquidar ($${p.serviceFee} c/u)`,
+        `${p.pendingRides} · $${p.pendingRidesAmount}`,
+        p.pendingRides ? "accent" : ""
+      )
+    );
+    notes.push(`Los $${p.serviceFee} de servicio los paga el pasajero en cada viaje, no salen de lo que tú ganas.`);
+  }
+
+  document.getElementById("accountRows").innerHTML = rows.join("");
+  document.getElementById("accountNote").textContent = notes.join(" ");
+
+  // --- Mis datos (solo lectura) ---
+  document.getElementById("dataRows").innerHTML = [
+    row("Teléfono", p.phone),
+    row("Unidad", p.vehicle || "—"),
+    row("Agrupación", p.grupo || "—"),
+    row("Tipo", p.vehicleType === "taxi" ? "Taxi" : "Moto"),
+    p.cancelCount ? row("Viajes cancelados por ti", p.cancelCount, p.cancelCount >= 3 ? "warn" : "") : "",
+  ].join("");
+
+  document.getElementById("profilePin").textContent = p.pin;
+}
+
+function handleProfilePhoto(event) {
+  const file = event.target.files[0];
+  const msg = document.getElementById("profilePhotoMsg");
+  msg.style.color = "var(--danger)";
+  msg.textContent = "";
+  if (!file) return;
+
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = (e) => { img.src = e.target.result; };
+  reader.onerror = () => { msg.textContent = "No se pudo leer la foto, intenta de nuevo"; };
+  img.onerror = () => { msg.textContent = "Ese archivo no es una imagen válida"; };
+  img.onload = () => {
+    let { width, height } = img;
+    const maxDim = 900;
+    if (width > height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+    else if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+    uploadProfilePhoto(canvas.toDataURL("image/jpeg", 0.72));
+  };
+  reader.readAsDataURL(file);
+  event.target.value = ""; // permite volver a elegir la misma foto si algo falla
+}
+
+async function uploadProfilePhoto(dataUrl) {
+  const msg = document.getElementById("profilePhotoMsg");
+  const btn = document.getElementById("profilePhotoBtn");
+  btn.disabled = true;
+  msg.style.color = "var(--text-dim)";
+  msg.textContent = "Guardando tu foto...";
+  try {
+    const res = await fetch(API + "/api/drivers/photo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: driver.pin, photo: dataUrl }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "No se pudo guardar");
+    document.getElementById("profilePhotoSlot").innerHTML = `<img id="profilePhoto" src="${dataUrl}" alt="Mi foto" />`;
+    msg.style.color = "var(--success)";
+    msg.textContent = "✅ Foto actualizada";
+  } catch (e) {
+    msg.style.color = "var(--danger)";
+    msg.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // Auto-login si ya había sesión
