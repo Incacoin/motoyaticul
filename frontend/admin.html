@@ -88,6 +88,11 @@
   .modal-card .payHistRow { display: flex; justify-content: space-between; font-size: 13.5px; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .modal-card .payHistRow:last-child { border-bottom: none; }
   .modal-close { margin-top: 14px; width: 100%; }
+  .admin-tabs { display: flex; gap: 8px; margin: 0 0 24px; position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 12px 0; }
+  .admin-tabs button { flex: 1; padding: 11px 8px; font-size: 14px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-dim); cursor: pointer; }
+  .admin-tabs button.active { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 </style>
 </head>
 <body>
@@ -100,6 +105,13 @@
 </div>
 
 <div id="app" class="screen">
+  <div class="admin-tabs">
+    <button id="tabBtn-resumen" class="active" onclick="switchTab('resumen')">📊 Resumen</button>
+    <button id="tabBtn-choferes" onclick="switchTab('choferes')">👥 Choferes</button>
+    <button id="tabBtn-viajes" onclick="switchTab('viajes')">🚗 Viajes</button>
+  </div>
+
+  <div id="tabPanel-resumen" class="tab-panel active">
   <h1>Resumen</h1>
   <p class="section-hint">Últimos 7 días.</p>
   <div class="stats-grid">
@@ -140,7 +152,9 @@
   <h1>🏆 Ranking de lanzamiento</h1>
   <p class="section-hint">Desde el 21 de agosto. El Top 5 no paga su primer mes de mensualidad; el 🥇 primer lugar además gana un bono de $500 MXN. Solo cuentan los viajes sin calificación mala — por eso este número puede no coincidir con "Choferes más activos".</p>
   <div class="top-drivers" id="launchRanking" style="margin-bottom:30px;"></div>
+  </div>
 
+  <div id="tabPanel-choferes" class="tab-panel">
   <h1>Solicitudes de chofer</h1>
   <p class="section-hint">Gente que se registró desde el QR de "Quiero ser chofer".</p>
   <div id="applicationsList"></div>
@@ -207,7 +221,9 @@
       <tbody id="driverRows"></tbody>
     </table>
   </div>
+  </div>
 
+  <div id="tabPanel-viajes" class="tab-panel">
   <h1 class="rides-title"><span class="live-dot"></span>Viajes en vivo</h1>
   <p class="section-hint">Se actualiza solo cada 4 segundos. Últimos 50 viajes.</p>
   <div class="table-wrap">
@@ -217,6 +233,7 @@
       </thead>
       <tbody id="rideRows"></tbody>
     </table>
+  </div>
   </div>
 </div>
 
@@ -247,6 +264,14 @@ let pendingDriverPhoto = null;
 let lastRegistered = null;
 let editingId = null;
 let ridesPollTimer = null;
+
+function switchTab(tab) {
+  ["resumen", "choferes", "viajes"].forEach((t) => {
+    document.getElementById(`tabPanel-${t}`).classList.toggle("active", t === tab);
+    document.getElementById(`tabBtn-${t}`).classList.toggle("active", t === tab);
+  });
+  try { localStorage.setItem("motoyaAdminTab", tab); } catch {}
+}
 
 const RIDE_STATUS_LABEL = {
   buscando: "Buscando chofer",
@@ -311,6 +336,9 @@ async function login() {
   }
   document.getElementById("login").classList.remove("active");
   document.getElementById("app").classList.add("active");
+  let savedTab = "resumen";
+  try { savedTab = localStorage.getItem("motoyaAdminTab") || "resumen"; } catch {}
+  switchTab(savedTab);
   loadDrivers();
   loadRides();
   loadStats();
