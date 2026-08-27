@@ -213,4 +213,34 @@ try {
   // la columna ya existe
 }
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS riders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone TEXT NOT NULL UNIQUE,
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_ride_at TEXT
+  );
+`);
+
+try {
+  db.exec("ALTER TABLE rides ADD COLUMN rider_id INTEGER REFERENCES riders(id)");
+} catch {
+  // la columna ya existe
+}
+
+// Backfill: da de alta un rider por cada teléfono que ya aparece en viajes
+// viejos (de antes de que existiera esta tabla) y liga esos viajes con su
+// rider_id. Es idempotente: solo toca teléfonos/viajes que aún no tienen dueño.
+db.exec(`
+  INSERT OR IGNORE INTO riders (phone, name, created_at, last_ride_at)
+  SELECT rider_phone, rider_name, MIN(created_at), MAX(created_at)
+  FROM rides
+  GROUP BY rider_phone;
+
+  UPDATE rides
+  SET rider_id = (SELECT id FROM riders WHERE riders.phone = rides.rider_phone)
+  WHERE rider_id IS NULL;
+`);
+
 module.exports = db;
