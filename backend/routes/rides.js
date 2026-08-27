@@ -22,14 +22,21 @@ router.post("/rides", (req, res) => {
     return res.status(400).json({ error: "Faltan datos del viaje" });
   }
 
+  db.prepare(
+    `INSERT INTO riders (phone, name, last_ride_at) VALUES (?, ?, datetime('now'))
+     ON CONFLICT(phone) DO UPDATE SET name = excluded.name, last_ride_at = excluded.last_ride_at`
+  ).run(rider_phone, rider_name);
+  const rider = db.prepare("SELECT id FROM riders WHERE phone = ?").get(rider_phone);
+
   const result = db
     .prepare(
-      `INSERT INTO rides (rider_name, rider_phone, pickup_lat, pickup_lng, pickup_label, dest_lat, dest_lng, dest_label, passengers, ride_type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO rides (rider_name, rider_phone, rider_id, pickup_lat, pickup_lng, pickup_label, dest_lat, dest_lng, dest_label, passengers, ride_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       rider_name,
       rider_phone,
+      rider.id,
       pickup_lat,
       pickup_lng,
       pickup_label || null,
