@@ -1119,10 +1119,10 @@ function renderProfile(p) {
   const rows = [];
   const notes = [];
   const today = new Date().toISOString().slice(0, 10);
-  const inTrial = p.trialEndDate && today <= p.trialEndDate;
+  const inTrial = !p.paidUntil && (!p.trialEndDate || today <= p.trialEndDate);
 
   if (inTrial) {
-    rows.push(row("Prueba gratis hasta", fmtDate(p.trialEndDate), "ok"));
+    rows.push(row("Prueba gratis hasta", p.trialEndDate ? fmtDate(p.trialEndDate) : "Indefinida", "ok"));
     notes.push(`Durante la prueba no pagas nada. Después son $${p.monthlyFee} al mes.`);
   } else if (p.paidUntil) {
     const alDia = today <= p.paidUntil;
