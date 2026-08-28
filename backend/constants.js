@@ -3,7 +3,8 @@ module.exports = {
   SERVICE_FEE: 2,
   MONTHLY_FEE: 100,
   LAUNCH_DATE: "2026-08-21",
-  TRIAL_END_DATE: "2026-09-20",
+  // null = prueba gratis indefinida, sin fecha de corte automática.
+  TRIAL_END_DATE: null,
   // Un chofer "disponible" a más de esto de quien está mirando el mapa no es
   // realista que llegue por él, ya sea un pasajero viendo el mapa o un chofer
   // viendo a sus compañeros. Mismo radio que usa el matcheo de viajes nuevos.
