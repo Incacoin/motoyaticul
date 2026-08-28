@@ -257,7 +257,7 @@ fetch(API + "/api/config").then((r) => r.json()).then((cfg) => {
 }).catch(() => {});
 let adminPin = null;
 let launchRankingCache = [];
-let trialEndDateCache = "2026-09-20";
+let trialEndDateCache = null;
 let driversCache = [];
 let applicationsCache = [];
 let pendingDriverPhoto = null;
@@ -450,7 +450,7 @@ async function loadStats() {
   document.getElementById("statCollectedMonth").textContent = `$${s.collectedMonth}`;
 
   launchRankingCache = s.launchRanking || [];
-  trialEndDateCache = s.trialEndDate || trialEndDateCache;
+  trialEndDateCache = s.trialEndDate;
   const medals = ["🥇", "🥈", "🥉", "4.", "5."];
   const rankMax = Math.max(1, ...launchRankingCache.map((d) => d.rides));
   document.getElementById("launchRanking").innerHTML = launchRankingCache.length
@@ -796,7 +796,7 @@ function monthsOverdue(d, today) {
 
 function paymentReminderMessage(d) {
   const today = new Date().toISOString().slice(0, 10);
-  const inTrial = today < trialEndDateCache;
+  const inTrial = !d.paid_until && (!trialEndDateCache || today < trialEndDateCache);
   const pendingRides = d.pending_rides || 0;
   const feeAmount = pendingRides * SERVICE_FEE;
   const monthlyVencido = !inTrial && (!d.paid_until || d.paid_until < today);
@@ -805,7 +805,8 @@ function paymentReminderMessage(d) {
 
   const lines = [];
   if (inTrial && !d.paid_until) {
-    lines.push(`🎉 Sigues en tu mes de prueba gratis (hasta el ${trialEndDateCache}) — todavía no debes cuota mensual.`);
+    const hasta = trialEndDateCache ? `hasta el ${trialEndDateCache}` : "sin fecha límite por ahora";
+    lines.push(`🎉 Sigues en tu mes de prueba gratis (${hasta}) — todavía no debes cuota mensual.`);
   } else {
     lines.push(
       monthlyVencido
