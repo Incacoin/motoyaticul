@@ -161,9 +161,15 @@
 
   <div id="tabPanel-choferes" class="tab-panel">
   <h1>🔗 Link / QR de registro</h1>
-  <p class="section-hint">Ponle el nombre del gremio y comparte el link o el QR con su líder — cuando un chofer se registre desde ahí, queda marcado como formal de ese gremio. Déjalo vacío para el QR general (independientes/informales).</p>
-  <div class="field">
-    <label>Gremio (opcional)</label>
+  <p class="section-hint">Elige a quién va dirigido este QR.</p>
+  <div class="tipo-tabs" id="qrModeTabs">
+    <button class="active" onclick="setQrMode('informal')">Informal (general)</button>
+    <button onclick="setQrMode('generico')">Formal genérico</button>
+    <button onclick="setQrMode('gremio')">Gremio específico</button>
+  </div>
+  <p class="section-hint" id="qrModeHint"></p>
+  <div class="field" id="qrGrupoField" style="display:none;">
+    <label>Gremio</label>
     <input id="qrGrupo" placeholder="Ej. Alcones Alfa" oninput="updateQrLink()" />
   </div>
   <div class="card" style="text-align:center; padding:18px;">
@@ -396,7 +402,7 @@ async function login() {
   loadStats();
   loadApplications();
   loadAlertas();
-  updateQrLink();
+  setQrMode("informal");
   clearInterval(ridesPollTimer);
   ridesPollTimer = setInterval(() => { loadRides(); loadStats(); loadApplications(); }, 4000);
 }
@@ -439,9 +445,33 @@ async function loadAlertas() {
     : `<tr><td colspan="5" class="ago">Nada que revisar por ahora.</td></tr>`;
 }
 
+let qrMode = "informal";
+
+const QR_MODE_HINTS = {
+  informal: "Cualquiera se registra sin gremio. Se le pide foto de placa como verificación.",
+  generico: "Sirve para cualquier gremio — el chofer escribe a cuál pertenece, pero como aún no lo avala su líder, también se le pide foto de placa.",
+  gremio: "Link fijo para un líder específico. Su gente entra ya marcada como formal de ese gremio y no se le pide foto de placa.",
+};
+
+function setQrMode(mode) {
+  qrMode = mode;
+  const modes = ["informal", "generico", "gremio"];
+  document.querySelectorAll("#qrModeTabs button").forEach((b, i) => {
+    b.classList.toggle("active", modes[i] === mode);
+  });
+  document.getElementById("qrGrupoField").style.display = mode === "gremio" ? "flex" : "none";
+  document.getElementById("qrModeHint").textContent = QR_MODE_HINTS[mode];
+  updateQrLink();
+}
+
 function updateQrLink() {
-  const grupo = document.getElementById("qrGrupo").value.trim();
-  const link = `${location.origin}/quiero-ser-chofer.html${grupo ? `?grupo=${encodeURIComponent(grupo)}` : ""}`;
+  let link = `${location.origin}/quiero-ser-chofer.html`;
+  if (qrMode === "gremio") {
+    const grupo = document.getElementById("qrGrupo").value.trim();
+    link += grupo ? `?grupo=${encodeURIComponent(grupo)}` : "";
+  } else if (qrMode === "generico") {
+    link += "?formal=1";
+  }
   document.getElementById("qrLinkText").textContent = link;
   document.getElementById("qrImg").src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(link)}`;
 }
