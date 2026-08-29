@@ -189,7 +189,7 @@ router.post("/drivers/photo", (req, res) => {
 });
 
 router.post("/chofer-solicitudes", (req, res) => {
-  const { name, phone, photo, photoPlaca, acceptedLegal, vehicleType, grupo } = req.body;
+  const { name, phone, photo, photoPlaca, acceptedLegal, vehicleType, grupo, viaLiderLink, formalIntent } = req.body;
   if (!name || !phone || !photo) {
     return res.status(400).json({ error: "Falta nombre, teléfono o foto" });
   }
@@ -197,15 +197,15 @@ router.post("/chofer-solicitudes", (req, res) => {
     return res.status(400).json({ error: "Debes aceptar el aviso legal para continuar" });
   }
 
-  // El grupo llega solo si el link/QR lo traía embebido (lo puso el admin al
-  // generarlo para un líder) — el chofer nunca lo escribe él mismo, para que
-  // "formal" siga significando que un líder realmente lo avaló.
+  // El link de un líder (?grupo=Nombre) trae el gremio ya fijo — el chofer no
+  // lo escribe. El link genérico de formales (?formal=1) sí deja que el
+  // chofer escriba a qué gremio dice pertenecer, pero como nadie lo avaló
+  // todavía se le sigue pidiendo la foto de placa, igual que a un informal.
   const grupoLimpio = typeof grupo === "string" ? grupo.trim().slice(0, 60) : "";
-  const tipo = grupoLimpio ? "formal" : "informal";
+  const tipo = formalIntent ? "formal" : "informal";
+  const requierePlaca = !viaLiderLink;
 
-  // Un formal ya viene avalado por su líder; un informal no tiene ese aval,
-  // así que se le pide además la foto de la moto con placa como verificación.
-  if (tipo === "informal" && !photoPlaca) {
+  if (requierePlaca && !photoPlaca) {
     return res.status(400).json({ error: "Falta la foto de tu moto con la placa" });
   }
 
