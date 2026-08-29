@@ -93,6 +93,10 @@
   .admin-tabs button.active { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
+  .pct-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .pct-badge.alto { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+  .pct-badge.medio { background: rgba(246, 166, 35, 0.15); color: var(--accent); }
+  .pct-badge.bajo { background: rgba(255, 255, 255, 0.06); color: var(--text-dim); }
 </style>
 </head>
 <body>
@@ -109,6 +113,7 @@
     <button id="tabBtn-resumen" class="active" onclick="switchTab('resumen')">📊 Resumen</button>
     <button id="tabBtn-choferes" onclick="switchTab('choferes')">👥 Choferes</button>
     <button id="tabBtn-viajes" onclick="switchTab('viajes')">🚗 Viajes</button>
+    <button id="tabBtn-alertas" onclick="switchTab('alertas')">🚩 Alertas</button>
   </div>
 
   <div id="tabPanel-resumen" class="tab-panel active">
@@ -235,6 +240,39 @@
     </table>
   </div>
   </div>
+
+  <div id="tabPanel-alertas" class="tab-panel">
+  <h1>🚩 Cancelaciones sospechosas</h1>
+  <p class="section-hint">
+    Cuando un chofer acepta un viaje y luego el pasajero lo cancela en la app, no pasa nada —
+    excepto que el viaje nunca cobra la cuota de $2. Esto no prueba nada por sí solo (una
+    cancelación real se ve igual), pero si se repite mucho con el mismo chofer o con el mismo
+    pasajero, vale la pena preguntarle al líder del gremio.
+  </p>
+  <button class="btn-sm" onclick="loadAlertas()">🔄 Actualizar</button>
+
+  <h1 style="margin-top:24px;">Por chofer</h1>
+  <p class="section-hint">Choferes con al menos 3 viajes asignados, ordenados por % de cancelación del pasajero.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Chofer</th><th>Agrupación</th><th>Asignados</th><th>Cancelados por pasajero</th><th>%</th></tr>
+      </thead>
+      <tbody id="alertaChoferRows"></tbody>
+    </table>
+  </div>
+
+  <h1 style="margin-top:24px;">Mismo pasajero, mismo chofer</h1>
+  <p class="section-hint">La señal más fuerte: el mismo teléfono cancelando repetido justo con el mismo chofer.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Chofer</th><th>Pasajero</th><th>Teléfono</th><th>Veces</th><th>Última vez</th></tr>
+      </thead>
+      <tbody id="alertaParRows"></tbody>
+    </table>
+  </div>
+  </div>
 </div>
 
 <div id="paymentsModal" class="modal-overlay">
@@ -266,7 +304,7 @@ let editingId = null;
 let ridesPollTimer = null;
 
 function switchTab(tab) {
-  ["resumen", "choferes", "viajes"].forEach((t) => {
+  ["resumen", "choferes", "viajes", "alertas"].forEach((t) => {
     document.getElementById(`tabPanel-${t}`).classList.toggle("active", t === tab);
     document.getElementById(`tabBtn-${t}`).classList.toggle("active", t === tab);
   });
@@ -343,8 +381,47 @@ async function login() {
   loadRides();
   loadStats();
   loadApplications();
+  loadAlertas();
   clearInterval(ridesPollTimer);
   ridesPollTimer = setInterval(() => { loadRides(); loadStats(); loadApplications(); }, 4000);
+}
+
+function pctBadgeClass(pct) {
+  if (pct >= 30) return "alto";
+  if (pct >= 15) return "medio";
+  return "bajo";
+}
+
+async function loadAlertas() {
+  const res = await fetch(API + "/api/admin/reports/cancelaciones", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adminPin }),
+  });
+  if (!res.ok) return;
+  const { porChofer, paresRepetidos } = await res.json();
+
+  document.getElementById("alertaChoferRows").innerHTML = porChofer.length
+    ? porChofer.map((d) => `
+      <tr>
+        <td>${d.name}</td>
+        <td>${d.grupo || "—"}</td>
+        <td>${d.total_asignados}</td>
+        <td>${d.cancelados_pasajero}</td>
+        <td><span class="pct-badge ${pctBadgeClass(d.pct)}">${d.pct}%</span></td>
+      </tr>`).join("")
+    : `<tr><td colspan="5" class="ago">Nada que revisar por ahora.</td></tr>`;
+
+  document.getElementById("alertaParRows").innerHTML = paresRepetidos.length
+    ? paresRepetidos.map((p) => `
+      <tr>
+        <td>${p.driver_name}</td>
+        <td>${p.rider_name || "—"}</td>
+        <td>${p.rider_phone}</td>
+        <td>${p.veces}</td>
+        <td>${timeAgo(p.ultima_vez)}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="5" class="ago">Nada que revisar por ahora.</td></tr>`;
 }
 
 async function loadApplications() {

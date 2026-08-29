@@ -308,4 +308,47 @@ router.post("/admin/stats", checkAdminPin, (req, res) => {
   });
 });
 
+// Detecta el patrón de "cancela y te llevo por fuera": un chofer acepta un
+// viaje, se pone de acuerdo con el pasajero por chat para que este cancele en
+// la app, y el viaje se completa en efectivo sin que nunca llegue a
+// "completado" — así nunca se acumula la cuota de $2/viaje. No hay forma de
+// probarlo con certeza desde los datos (una cancelación real de pasajero se
+// ve idéntica), así que esto es una señal para que el admin revise con el
+// líder del gremio, no una acusación automática.
+router.post("/admin/reports/cancelaciones", checkAdminPin, (req, res) => {
+  const porChofer = db
+    .prepare(
+      `SELECT d.id, d.name, d.grupo,
+              COUNT(*) AS total_asignados,
+              SUM(CASE WHEN r.status = 'cancelado' AND r.cancelled_by = 'rider' THEN 1 ELSE 0 END) AS cancelados_pasajero
+       FROM rides r
+       JOIN drivers d ON d.id = r.driver_id
+       GROUP BY r.driver_id
+       HAVING total_asignados >= 3 AND cancelados_pasajero > 0
+       ORDER BY (1.0 * cancelados_pasajero / total_asignados) DESC
+       LIMIT 20`
+    )
+    .all()
+    .map((row) => ({ ...row, pct: Math.round((row.cancelados_pasajero / row.total_asignados) * 100) }));
+
+  // La señal más fuerte: el mismo pasajero cancelando repetido justo con el
+  // mismo chofer. Una cancelación real y aislada es normal; que se repita con
+  // la misma pareja chofer-pasajero casi no pasa por accidente.
+  const paresRepetidos = db
+    .prepare(
+      `SELECT r.driver_id, d.name AS driver_name, r.rider_phone, r.rider_name,
+              COUNT(*) AS veces, MAX(r.updated_at) AS ultima_vez
+       FROM rides r
+       JOIN drivers d ON d.id = r.driver_id
+       WHERE r.status = 'cancelado' AND r.cancelled_by = 'rider'
+       GROUP BY r.driver_id, r.rider_phone
+       HAVING veces >= 2
+       ORDER BY veces DESC, ultima_vez DESC
+       LIMIT 20`
+    )
+    .all();
+
+  res.json({ porChofer, paresRepetidos });
+});
+
 module.exports = router;
