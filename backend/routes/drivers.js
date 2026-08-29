@@ -189,7 +189,7 @@ router.post("/drivers/photo", (req, res) => {
 });
 
 router.post("/chofer-solicitudes", (req, res) => {
-  const { name, phone, photo, acceptedLegal, vehicleType } = req.body;
+  const { name, phone, photo, acceptedLegal, vehicleType, grupo } = req.body;
   if (!name || !phone || !photo) {
     return res.status(400).json({ error: "Falta nombre, teléfono o foto" });
   }
@@ -197,9 +197,15 @@ router.post("/chofer-solicitudes", (req, res) => {
     return res.status(400).json({ error: "Debes aceptar el aviso legal para continuar" });
   }
 
+  // El grupo llega solo si el link/QR lo traía embebido (lo puso el admin al
+  // generarlo para un líder) — el chofer nunca lo escribe él mismo, para que
+  // "formal" siga significando que un líder realmente lo avaló.
+  const grupoLimpio = typeof grupo === "string" ? grupo.trim().slice(0, 60) : "";
+  const tipo = grupoLimpio ? "formal" : "informal";
+
   db.prepare(
-    "INSERT INTO driver_applications (name, phone, photo, accepted_legal_at, accepted_legal_version, vehicle_type) VALUES (?, ?, ?, datetime('now'), ?, ?)"
-  ).run(name, phone, photo, AVISO_LEGAL_VERSION, vehicleType === "taxi" ? "taxi" : "moto");
+    "INSERT INTO driver_applications (name, phone, photo, accepted_legal_at, accepted_legal_version, vehicle_type, grupo, tipo) VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?)"
+  ).run(name, phone, photo, AVISO_LEGAL_VERSION, vehicleType === "taxi" ? "taxi" : "moto", grupoLimpio || null, tipo);
   res.status(201).json({ ok: true });
 });
 
