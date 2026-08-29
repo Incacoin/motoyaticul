@@ -53,7 +53,7 @@
   .ratingQuestion { margin: 0 0 12px; font-size: 15px; }
   .ratingButtons { display: flex; gap: 10px; justify-content: center; }
   .ratingButtons .btn { width: auto; padding: 10px 20px; }
-  #statusMap { width: 100%; height: 40vh; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); }
+  #statusMap { width: 100%; height: 50vh; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); }
   #connWarning { display: none; color: var(--danger); font-size: 13.5px; text-align: center; }
   #chatBox { display: none; flex-direction: column; gap: 8px; padding: 14px; width: 280px; }
   #chatMessages { max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; text-align: left; }
@@ -63,6 +63,10 @@
   .chat-row { display: flex; gap: 6px; }
   .chat-row input { flex: 1; padding: 10px 12px; font-size: 14px; }
   .chat-row button { padding: 10px 16px; font-size: 14px; }
+  .chat-toggle-btn { position: relative; width: 280px; }
+  .chat-toggle-btn.has-unread::after { content: ""; position: absolute; top: 9px; right: 16px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
+  .share-cancel-row { display: flex; gap: 10px; width: 280px; }
+  .share-cancel-row .btn { flex: 1; }
 </style>
 </head>
 <body>
@@ -122,6 +126,7 @@
   <div id="connWarning"></div>
   <div id="statusMap"></div>
   <div id="driverCard" class="card fade-in" style="display:none;"></div>
+  <button class="btn btn-secondary chat-toggle-btn" id="chatToggleBtn" onclick="toggleChat()" style="display:none;">💬 Chat</button>
   <div id="chatBox" class="card fade-in">
     <div id="chatMessages"></div>
     <div class="chat-row">
@@ -129,8 +134,10 @@
       <button class="btn btn-secondary" onclick="sendChatMessage()">Enviar</button>
     </div>
   </div>
-  <button class="btn btn-secondary" id="shareBtn" onclick="shareRide()">📍 Compartir viaje en vivo</button>
-  <button class="btn btn-secondary" id="cancelBtn" onclick="cancelRide()">Cancelar</button>
+  <div class="share-cancel-row">
+    <button class="btn btn-secondary" id="shareBtn" onclick="shareRide()">📍 Compartir</button>
+    <button class="btn btn-secondary" id="cancelBtn" onclick="cancelRide()">Cancelar</button>
+  </div>
   <div id="ratingBox" class="card fade-in" style="display:none;">
     <p class="ratingQuestion">¿Tuviste buen servicio?</p>
     <div class="ratingButtons">
@@ -202,6 +209,26 @@ function dismissInstallBanner() {
 initInstallBanner();
 
 let map, statusMap;
+let chatExpanded = false;
+
+function showChatToggle() {
+  document.getElementById("chatToggleBtn").style.display = "inline-block";
+}
+
+function toggleChat() {
+  chatExpanded = !chatExpanded;
+  document.getElementById("chatBox").style.display = chatExpanded ? "flex" : "none";
+  const btn = document.getElementById("chatToggleBtn");
+  btn.classList.remove("has-unread");
+  btn.textContent = chatExpanded ? "💬 Cerrar chat" : "💬 Chat";
+}
+
+function hideChat() {
+  document.getElementById("chatBox").style.display = "none";
+  document.getElementById("chatToggleBtn").style.display = "none";
+  document.getElementById("chatToggleBtn").classList.remove("has-unread");
+  chatExpanded = false;
+}
 let pickup = null, dest = null;
 let pickupMarker = null, destMarker = null;
 let ride = null, ws = null;
@@ -567,8 +594,9 @@ function connectWs() {
     if (type === "driver_lost") onDriverLost();
     if (type === "no_drivers_available") onNoDriversAvailable();
     if (type === "chat") {
-      document.getElementById("chatBox").style.display = "flex";
       appendChatMessage(payload.text, "them");
+      showChatToggle();
+      if (!chatExpanded) document.getElementById("chatToggleBtn").classList.add("has-unread");
     }
   };
   ws.onclose = () => {
@@ -586,7 +614,7 @@ async function onDriverAssigned(driver) {
   document.getElementById("statusText").textContent = "¡Chofer en camino!";
   const cancelBtnEl = document.getElementById("cancelBtn");
   cancelBtnEl.style.display = "inline-block";
-  cancelBtnEl.textContent = "🚪 Salir del viaje";
+  cancelBtnEl.textContent = "🚪 Salir";
   const card = document.getElementById("driverCard");
   card.style.display = "block";
   let badgeHtml = "";
@@ -614,7 +642,7 @@ async function onDriverAssigned(driver) {
     driverMarker = L.marker([driver.lat, driver.lng], { icon: serviceType === "taxi" ? taxiIcon() : motoIcon() }).addTo(statusMap);
     startRouteTracking();
   }
-  document.getElementById("chatBox").style.display = "flex";
+  showChatToggle();
 }
 
 function onDriverArrived() {
@@ -756,7 +784,7 @@ function onCompleted() {
   document.getElementById("statusText").textContent = "¡Buen viaje! Gracias por usar MotoYaTicul 🛵";
   document.getElementById("connWarning").style.display = "none";
   document.getElementById("driverCard").style.display = "none";
-  document.getElementById("chatBox").style.display = "none";
+  hideChat();
   document.getElementById("shareBtn").style.display = "none";
   document.getElementById("cancelBtn").style.display = "none";
   document.getElementById("newRideBtn").style.display = "inline-block";
@@ -800,7 +828,7 @@ function onNoDriversAvailable() {
   localStorage.removeItem("motoya_active_ride");
   document.getElementById("statusText").textContent = "😕 No hay choferes disponibles ahorita. Intenta de nuevo en unos minutos.";
   document.getElementById("connWarning").style.display = "none";
-  document.getElementById("chatBox").style.display = "none";
+  hideChat();
   document.getElementById("shareBtn").style.display = "none";
   document.getElementById("cancelBtn").style.display = "none";
   document.getElementById("newRideBtn").style.display = "inline-block";
@@ -813,7 +841,7 @@ function onCancelledByDriver() {
   localStorage.removeItem("motoya_active_ride");
   document.getElementById("statusText").textContent = "El viaje fue cancelado.";
   document.getElementById("connWarning").style.display = "none";
-  document.getElementById("chatBox").style.display = "none";
+  hideChat();
   document.getElementById("shareBtn").style.display = "none";
   document.getElementById("cancelBtn").style.display = "none";
   document.getElementById("newRideBtn").style.display = "inline-block";
@@ -855,7 +883,7 @@ async function cancelRide() {
   });
   document.getElementById("statusText").textContent = "Viaje cancelado.";
   document.getElementById("connWarning").style.display = "none";
-  document.getElementById("chatBox").style.display = "none";
+  hideChat();
   document.getElementById("shareBtn").style.display = "none";
   document.getElementById("cancelBtn").style.display = "none";
   document.getElementById("newRideBtn").style.display = "inline-block";
