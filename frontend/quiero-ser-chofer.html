@@ -28,6 +28,8 @@
   #okScreen p { color: var(--text-dim); font-size: 14px; line-height: 1.5; margin: 0; }
   .credit { margin-top: 22px; }
   button.btn { width: 100%; }
+  #grupoBanner { display: none; background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.35); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; color: var(--text); margin-bottom: 18px; }
+  #grupoBanner strong { color: var(--success); }
 </style>
 </head>
 <body>
@@ -36,6 +38,7 @@
   <div id="formScreen">
     <p class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</p>
     <p class="lead">Regístrate como conductor y empieza a recibir viajes en Ticul. Déjanos tu nombre y teléfono — te contactamos por WhatsApp para completar tu alta y darte tu PIN.</p>
+    <div id="grupoBanner">🤝 Te registras con el aval de: <strong id="grupoNombre"></strong></div>
 
     <div class="field">
       <label>Nombre completo</label>
@@ -82,6 +85,11 @@
 
 <script>
 let photoDataUrl = "";
+const grupoParam = new URLSearchParams(location.search).get("grupo");
+if (grupoParam && grupoParam.trim()) {
+  document.getElementById("grupoNombre").textContent = grupoParam.trim();
+  document.getElementById("grupoBanner").style.display = "block";
+}
 
 function handlePhoto(event) {
   const file = event.target.files[0];
@@ -142,7 +150,7 @@ async function submitApplication() {
   const res = await fetch("/api/chofer-solicitudes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, phone, photo: photoDataUrl, acceptedLegal: true, vehicleType }),
+    body: JSON.stringify({ name, phone, photo: photoDataUrl, acceptedLegal: true, vehicleType, grupo: grupoParam || "" }),
   });
   if (!res.ok) {
     err.textContent = "No se pudo enviar, intenta de nuevo";
