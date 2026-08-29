@@ -160,8 +160,20 @@
   </div>
 
   <div id="tabPanel-choferes" class="tab-panel">
-  <h1>Solicitudes de chofer</h1>
-  <p class="section-hint">Gente que se registró desde el QR de "Quiero ser chofer".</p>
+  <h1>🔗 Link / QR de registro</h1>
+  <p class="section-hint">Ponle el nombre del gremio y comparte el link o el QR con su líder — cuando un chofer se registre desde ahí, queda marcado como formal de ese gremio. Déjalo vacío para el QR general (independientes/informales).</p>
+  <div class="field">
+    <label>Gremio (opcional)</label>
+    <input id="qrGrupo" placeholder="Ej. Alcones Alfa" oninput="updateQrLink()" />
+  </div>
+  <div class="card" style="text-align:center; padding:18px;">
+    <img id="qrImg" style="width:220px;height:220px;border-radius:8px;background:#fff;" />
+    <div id="qrLinkText" style="word-break:break-all;font-size:12.5px;color:var(--text-dim);margin-top:12px;"></div>
+    <button class="btn-sm" style="margin-top:10px;" onclick="copyQrLink()">Copiar link</button>
+  </div>
+
+  <h1 style="margin-top:30px;">Solicitudes de chofer</h1>
+  <p class="section-hint">Gente que se registró desde el link/QR de "Quiero ser chofer".</p>
   <div id="applicationsList"></div>
 
   <h1>Dar de alta un chofer</h1>
@@ -299,6 +311,7 @@ let trialEndDateCache = null;
 let driversCache = [];
 let applicationsCache = [];
 let pendingDriverPhoto = null;
+let pendingDriverTipo = "formal";
 let lastRegistered = null;
 let editingId = null;
 let ridesPollTimer = null;
@@ -382,6 +395,7 @@ async function login() {
   loadStats();
   loadApplications();
   loadAlertas();
+  updateQrLink();
   clearInterval(ridesPollTimer);
   ridesPollTimer = setInterval(() => { loadRides(); loadStats(); loadApplications(); }, 4000);
 }
@@ -424,6 +438,18 @@ async function loadAlertas() {
     : `<tr><td colspan="5" class="ago">Nada que revisar por ahora.</td></tr>`;
 }
 
+function updateQrLink() {
+  const grupo = document.getElementById("qrGrupo").value.trim();
+  const link = `${location.origin}/quiero-ser-chofer.html${grupo ? `?grupo=${encodeURIComponent(grupo)}` : ""}`;
+  document.getElementById("qrLinkText").textContent = link;
+  document.getElementById("qrImg").src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(link)}`;
+}
+
+function copyQrLink() {
+  const link = document.getElementById("qrLinkText").textContent;
+  navigator.clipboard.writeText(link).then(() => showToast("Link copiado")).catch(() => showToast("No se pudo copiar"));
+}
+
 async function loadApplications() {
   const res = await fetch(API + "/api/admin/chofer-solicitudes/list", {
     method: "POST",
@@ -444,7 +470,8 @@ function renderApplications(apps) {
           ${a.photo ? `<img class="thumb" src="${a.photo}" onclick="window.open('${a.photo}', '_blank')" />` : ""}
           <div class="who">
             <span class="name">${a.name}</span>
-            <span class="meta">${a.phone} · ${timeAgo(a.created_at)} · ${vehicleTypeBadge(a.vehicle_type)}</span>
+            <span class="meta">${a.phone} · ${timeAgo(a.created_at)} · ${vehicleTypeBadge(a.vehicle_type)} ${tipoBadge(a.tipo)}</span>
+            ${a.grupo ? `<span class="meta">🤝 ${a.grupo}</span>` : ""}
           </div>
         </div>
         <div class="row-actions">
@@ -460,6 +487,9 @@ function useApplication(id) {
   if (!app) return;
   document.getElementById("driverName").value = app.name;
   document.getElementById("driverPhone").value = app.phone;
+  document.getElementById("driverGrupo").value = app.grupo || "";
+  document.getElementById("driverVehicleType").value = app.vehicle_type === "taxi" ? "taxi" : "moto";
+  pendingDriverTipo = app.tipo === "formal" ? "formal" : "informal";
   pendingDriverPhoto = app.photo || null;
   renderPendingPhotoPreview();
   document.getElementById("driverName").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -555,7 +585,7 @@ async function registerDriver() {
   const phone = document.getElementById("driverPhone").value.trim();
   const vehicle = document.getElementById("driverVehicle").value.trim();
   const grupo = document.getElementById("driverGrupo").value.trim();
-  const tipo = "formal";
+  const tipo = pendingDriverTipo;
   const vehicleType = document.getElementById("driverVehicleType").value;
   document.getElementById("err2").textContent = "";
 
@@ -592,6 +622,7 @@ async function registerDriver() {
   document.getElementById("driverAcceptedLegal").checked = false;
   document.getElementById("driverPhotoInput").value = "";
   pendingDriverPhoto = null;
+  pendingDriverTipo = "formal";
   renderPendingPhotoPreview();
 
   loadDrivers();
