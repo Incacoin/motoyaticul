@@ -220,7 +220,7 @@ router.post("/admin/drivers/:id/delete", checkAdminPin, (req, res) => {
 router.post("/admin/chofer-solicitudes/list", checkAdminPin, (req, res) => {
   const apps = db
     .prepare(
-      "SELECT id, name, phone, photo, status, created_at, accepted_legal_at, accepted_legal_version, vehicle_type FROM driver_applications WHERE status = 'pendiente' ORDER BY created_at DESC"
+      "SELECT id, name, phone, photo, status, created_at, accepted_legal_at, accepted_legal_version, vehicle_type, grupo, tipo FROM driver_applications WHERE status = 'pendiente' ORDER BY created_at DESC"
     )
     .all();
   res.json(apps);
