@@ -159,6 +159,18 @@ try {
 }
 
 try {
+  db.exec("ALTER TABLE driver_applications ADD COLUMN grupo TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE driver_applications ADD COLUMN tipo TEXT NOT NULL DEFAULT 'informal'");
+} catch {
+  // la columna ya existe
+}
+
+try {
   db.exec("ALTER TABLE rides ADD COLUMN cancelled_by TEXT");
 } catch {
   // la columna ya existe
