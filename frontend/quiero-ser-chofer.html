@@ -28,8 +28,9 @@
   #okScreen p { color: var(--text-dim); font-size: 14px; line-height: 1.5; margin: 0; }
   .credit { margin-top: 22px; }
   button.btn { width: 100%; }
-  #grupoBanner { display: none; background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.35); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; color: var(--text); margin-bottom: 18px; }
+  #grupoBanner, #formalGenericoBanner { display: none; background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.35); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; color: var(--text); margin-bottom: 18px; line-height: 1.5; }
   #grupoBanner strong { color: var(--success); }
+  #grupoInputField { display: none; }
 </style>
 </head>
 <body>
@@ -39,6 +40,11 @@
     <p class="brand"><span class="brand-icon">🛵</span>MotoYaTicul</p>
     <p class="lead">Regístrate como conductor y empieza a recibir viajes en Ticul. Déjanos tu nombre y teléfono — te contactamos por WhatsApp para completar tu alta y darte tu PIN.</p>
     <div id="grupoBanner">🤝 Te registras con el aval de: <strong id="grupoNombre"></strong></div>
+    <div id="formalGenericoBanner">🤝 Registro para choferes de gremio formal. Tu líder deberá confirmarlo antes de darte de alta.</div>
+    <div class="field" id="grupoInputField">
+      <label>¿De qué gremio o agrupación eres?</label>
+      <input id="grupoInput" placeholder="Ej. Alcones Alfa" />
+    </div>
 
     <div class="field">
       <label>Nombre completo</label>
@@ -93,11 +99,17 @@
 let photoDataUrl = "";
 let photoPlacaDataUrl = "";
 const grupoParam = new URLSearchParams(location.search).get("grupo");
-const esFormal = !!(grupoParam && grupoParam.trim());
-if (esFormal) {
+const formalGenericoParam = new URLSearchParams(location.search).get("formal") === "1";
+const viaLiderLink = !!(grupoParam && grupoParam.trim());
+const esFormalGenerico = !viaLiderLink && formalGenericoParam;
+
+if (viaLiderLink) {
   document.getElementById("grupoNombre").textContent = grupoParam.trim();
   document.getElementById("grupoBanner").style.display = "block";
   document.getElementById("placaField").style.display = "none";
+} else if (esFormalGenerico) {
+  document.getElementById("formalGenericoBanner").style.display = "block";
+  document.getElementById("grupoInputField").style.display = "flex";
 }
 
 function resizeToDataUrl(file, onDone, onError) {
@@ -178,7 +190,7 @@ async function submitApplication() {
     err.textContent = "Tómate una foto contigo y tu moto";
     return;
   }
-  if (!esFormal && !photoPlacaDataUrl) {
+  if (!viaLiderLink && !photoPlacaDataUrl) {
     err.textContent = "Sube una foto de tu moto con la placa visible";
     return;
   }
@@ -187,11 +199,18 @@ async function submitApplication() {
     return;
   }
 
+  const grupo = viaLiderLink
+    ? grupoParam.trim()
+    : (esFormalGenerico ? document.getElementById("grupoInput").value.trim() : "");
+
   const vehicleType = document.getElementById("vehicleType").value;
   const res = await fetch("/api/chofer-solicitudes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, phone, photo: photoDataUrl, photoPlaca: photoPlacaDataUrl, acceptedLegal: true, vehicleType, grupo: grupoParam || "" }),
+    body: JSON.stringify({
+      name, phone, photo: photoDataUrl, photoPlaca: photoPlacaDataUrl, acceptedLegal: true, vehicleType,
+      grupo, viaLiderLink, formalIntent: viaLiderLink || esFormalGenerico,
+    }),
   });
   if (!res.ok) {
     err.textContent = "No se pudo enviar, intenta de nuevo";
