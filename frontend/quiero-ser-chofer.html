@@ -17,7 +17,7 @@
   .phoneRow .prefix { padding: 13px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 16px; }
   .phoneRow input { flex: 1; }
   .fieldHint { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; margin: 0 0 8px; }
-  #photoPreview { display: none; width: 100%; max-height: 220px; object-fit: cover; border-radius: var(--radius-sm); margin-top: 10px; border: 1px solid var(--border); }
+  #photoPreview, #photoPlacaPreview { display: none; width: 100%; max-height: 220px; object-fit: cover; border-radius: var(--radius-sm); margin-top: 10px; border: 1px solid var(--border); }
   #err { color: var(--danger); min-height: 18px; font-size: 13.5px; margin-top: 4px; }
   .legalCheck { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; cursor: pointer; }
   .legalCheck input { margin-top: 3px; flex-shrink: 0; }
@@ -64,6 +64,12 @@
       <input type="file" id="photo" accept="image/*" capture="environment" onchange="handlePhoto(event)" />
       <img id="photoPreview" />
     </div>
+    <div class="field" id="placaField">
+      <label>Foto de tu moto y placa</label>
+      <p class="fieldHint">Tómala de frente, con la placa bien visible y legible.</p>
+      <input type="file" id="photoPlaca" accept="image/*" capture="environment" onchange="handlePhotoPlaca(event)" />
+      <img id="photoPlacaPreview" />
+    </div>
     <div class="field legalField">
       <label class="legalCheck">
         <input type="checkbox" id="acceptLegal" />
@@ -85,25 +91,20 @@
 
 <script>
 let photoDataUrl = "";
+let photoPlacaDataUrl = "";
 const grupoParam = new URLSearchParams(location.search).get("grupo");
-if (grupoParam && grupoParam.trim()) {
+const esFormal = !!(grupoParam && grupoParam.trim());
+if (esFormal) {
   document.getElementById("grupoNombre").textContent = grupoParam.trim();
   document.getElementById("grupoBanner").style.display = "block";
+  document.getElementById("placaField").style.display = "none";
 }
 
-function handlePhoto(event) {
-  const file = event.target.files[0];
-  const err = document.getElementById("err");
-  err.textContent = "";
-  if (!file) {
-    photoDataUrl = "";
-    return;
-  }
-
+function resizeToDataUrl(file, onDone, onError) {
   const img = new Image();
   const reader = new FileReader();
   reader.onload = (e) => { img.src = e.target.result; };
-  reader.onerror = () => { err.textContent = "No se pudo leer la foto, intenta de nuevo"; };
+  reader.onerror = () => onError();
   img.onload = () => {
     let { width, height } = img;
     const maxDim = 900;
@@ -114,13 +115,49 @@ function handlePhoto(event) {
     canvas.width = width;
     canvas.height = height;
     canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-    photoDataUrl = canvas.toDataURL("image/jpeg", 0.72);
-
-    const preview = document.getElementById("photoPreview");
-    preview.src = photoDataUrl;
-    preview.style.display = "block";
+    onDone(canvas.toDataURL("image/jpeg", 0.72));
   };
   reader.readAsDataURL(file);
+}
+
+function handlePhoto(event) {
+  const file = event.target.files[0];
+  const err = document.getElementById("err");
+  err.textContent = "";
+  if (!file) {
+    photoDataUrl = "";
+    return;
+  }
+  resizeToDataUrl(
+    file,
+    (dataUrl) => {
+      photoDataUrl = dataUrl;
+      const preview = document.getElementById("photoPreview");
+      preview.src = dataUrl;
+      preview.style.display = "block";
+    },
+    () => { err.textContent = "No se pudo leer la foto, intenta de nuevo"; }
+  );
+}
+
+function handlePhotoPlaca(event) {
+  const file = event.target.files[0];
+  const err = document.getElementById("err");
+  err.textContent = "";
+  if (!file) {
+    photoPlacaDataUrl = "";
+    return;
+  }
+  resizeToDataUrl(
+    file,
+    (dataUrl) => {
+      photoPlacaDataUrl = dataUrl;
+      const preview = document.getElementById("photoPlacaPreview");
+      preview.src = dataUrl;
+      preview.style.display = "block";
+    },
+    () => { err.textContent = "No se pudo leer la foto, intenta de nuevo"; }
+  );
 }
 
 async function submitApplication() {
@@ -141,6 +178,10 @@ async function submitApplication() {
     err.textContent = "Tómate una foto contigo y tu moto";
     return;
   }
+  if (!esFormal && !photoPlacaDataUrl) {
+    err.textContent = "Sube una foto de tu moto con la placa visible";
+    return;
+  }
   if (!document.getElementById("acceptLegal").checked) {
     err.textContent = "Debes aceptar el aviso legal para continuar";
     return;
@@ -150,7 +191,7 @@ async function submitApplication() {
   const res = await fetch("/api/chofer-solicitudes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, phone, photo: photoDataUrl, acceptedLegal: true, vehicleType, grupo: grupoParam || "" }),
+    body: JSON.stringify({ name, phone, photo: photoDataUrl, photoPlaca: photoPlacaDataUrl, acceptedLegal: true, vehicleType, grupo: grupoParam || "" }),
   });
   if (!res.ok) {
     err.textContent = "No se pudo enviar, intenta de nuevo";
