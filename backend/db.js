@@ -171,6 +171,18 @@ try {
 }
 
 try {
+  db.exec("ALTER TABLE driver_applications ADD COLUMN photo_placa TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE drivers ADD COLUMN photo_placa TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
   db.exec("ALTER TABLE rides ADD COLUMN cancelled_by TEXT");
 } catch {
   // la columna ya existe
