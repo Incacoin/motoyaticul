@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const { AVISO_LEGAL_VERSION, MAX_MATCH_DISTANCE_KM, SERVICE_CENTER, DRIVER_STALE_SECONDS, SERVICE_FEE, MONTHLY_FEE, TRIAL_END_DATE } = require("../constants");
 const { haversineKm } = require("../geo");
+const { isRateLimited, recordFailedAttempt, clearAttempts, RATE_LIMIT_MESSAGE } = require("../pinRateLimit");
 
 const router = express.Router();
 
@@ -70,6 +71,9 @@ router.get("/drivers/ranking", (req, res) => {
 });
 
 router.post("/drivers/login", (req, res) => {
+  if (isRateLimited(req.ip)) {
+    return res.status(429).json({ error: RATE_LIMIT_MESSAGE });
+  }
   const { pin } = req.body;
   const driver = db
     .prepare(
@@ -78,8 +82,10 @@ router.post("/drivers/login", (req, res) => {
     .get(pin);
 
   if (!driver) {
+    recordFailedAttempt(req.ip);
     return res.status(404).json({ error: "PIN no encontrado" });
   }
+  clearAttempts(req.ip);
 
   const { count: todayCount } = db
     .prepare(
@@ -100,6 +106,9 @@ router.post("/drivers/login", (req, res) => {
 // propio PIN — nunca con un id que mande el cliente, para que nadie pueda
 // pedir el perfil (ni el estado de cuenta) de otro chofer.
 router.post("/drivers/profile", (req, res) => {
+  if (isRateLimited(req.ip)) {
+    return res.status(429).json({ error: RATE_LIMIT_MESSAGE });
+  }
   const { pin } = req.body;
   const driver = db
     .prepare(
@@ -110,8 +119,10 @@ router.post("/drivers/profile", (req, res) => {
     .get(pin);
 
   if (!driver) {
+    recordFailedAttempt(req.ip);
     return res.status(404).json({ error: "PIN no encontrado" });
   }
+  clearAttempts(req.ip);
 
   const stats = db
     .prepare(
@@ -169,14 +180,19 @@ router.post("/drivers/profile", (req, res) => {
 // Nombre, placa, agrupación y tipo de vehículo los avaló su líder y solo se
 // tocan desde el admin — si el chofer pudiera cambiarlos, el aval no valdría.
 router.post("/drivers/photo", (req, res) => {
+  if (isRateLimited(req.ip)) {
+    return res.status(429).json({ error: RATE_LIMIT_MESSAGE });
+  }
   const { pin, photo } = req.body;
   const driver = db
     .prepare("SELECT id FROM drivers WHERE pin = ? AND deleted_at IS NULL")
     .get(pin);
 
   if (!driver) {
+    recordFailedAttempt(req.ip);
     return res.status(404).json({ error: "PIN no encontrado" });
   }
+  clearAttempts(req.ip);
   if (typeof photo !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(photo)) {
     return res.status(400).json({ error: "Foto inválida" });
   }
