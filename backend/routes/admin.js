@@ -1,13 +1,19 @@
 const express = require("express");
 const db = require("../db");
 const { AVISO_LEGAL_VERSION, SERVICE_FEE, LAUNCH_DATE, TRIAL_END_DATE } = require("../constants");
+const { isRateLimited, recordFailedAttempt, clearAttempts, RATE_LIMIT_MESSAGE } = require("../pinRateLimit");
 
 const router = express.Router();
 
 function checkAdminPin(req, res, next) {
+  if (isRateLimited(req.ip)) {
+    return res.status(429).json({ error: RATE_LIMIT_MESSAGE });
+  }
   if (req.body.adminPin !== process.env.ADMIN_PIN) {
+    recordFailedAttempt(req.ip);
     return res.status(401).json({ error: "PIN de admin incorrecto" });
   }
+  clearAttempts(req.ip);
   next();
 }
 
@@ -19,10 +25,7 @@ function generateDriverPin() {
   return pin;
 }
 
-router.post("/admin/login", (req, res) => {
-  if (req.body.adminPin !== process.env.ADMIN_PIN) {
-    return res.status(401).json({ error: "PIN de admin incorrecto" });
-  }
+router.post("/admin/login", checkAdminPin, (req, res) => {
   res.json({ ok: true });
 });
 
