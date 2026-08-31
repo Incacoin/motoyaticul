@@ -358,6 +358,8 @@ const FARE_THRESHOLD_KM = 1.5;
 const FARE_NORMAL = 15;
 let SERVICE_FEE = 2; // valor de respaldo hasta que cargue /api/config
 const NIGHT_FARE = 20;
+const CHILD_FARE_DAY = 5;
+const CHILD_FARE_NIGHT = 10;
 
 function isNightFare() {
   const h = new Date().getHours();
@@ -366,8 +368,10 @@ function isNightFare() {
 
 function estimateFare(ride) {
   const passengers = ride.passengers || 1;
+  const children = ride.children || 0;
+  const childrenNote = children > 0 ? ` (${passengers - children} adulto${passengers - children === 1 ? "" : "s"} + ${children} niño${children === 1 ? "" : "s"})` : "";
   if (ride.ride_type === "taxi") {
-    return `Viaje foráneo · acuerda el precio con el pasajero + $${SERVICE_FEE} de servicio · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
+    return `Viaje foráneo · acuerda el precio con el pasajero + $${SERVICE_FEE} de servicio · ${passengers} pasajero${passengers > 1 ? "s" : ""}${childrenNote}`;
   }
   const night = isNightFare();
   let pricePerPerson = night ? NIGHT_FARE : FARE_NORMAL;
@@ -376,13 +380,14 @@ function estimateFare(ride) {
     const tripKm = haversine(ride.pickup_lat, ride.pickup_lng, ride.dest_lat, ride.dest_lng);
     approx = false;
     if (tripKm > FARE_THRESHOLD_KM) {
-      return `Viaje largo · acuerda el precio con el pasajero + $${SERVICE_FEE} de servicio · ${passengers} pasajero${passengers > 1 ? "s" : ""}`;
+      return `Viaje largo · acuerda el precio con el pasajero + $${SERVICE_FEE} de servicio · ${passengers} pasajero${passengers > 1 ? "s" : ""}${childrenNote}`;
     }
     pricePerPerson = night ? NIGHT_FARE : (tripKm > FARE_SHORT_KM ? FARE_NORMAL : FARE_SHORT);
   }
-  const total = pricePerPerson * passengers + SERVICE_FEE;
+  const childRate = night ? CHILD_FARE_NIGHT : CHILD_FARE_DAY;
+  const total = pricePerPerson * (passengers - children) + childRate * children + SERVICE_FEE;
   const nightNote = night ? " · nocturna" : "";
-  return `$${total} MXN (incl. $${SERVICE_FEE} servicio)${nightNote} · ${passengers} pasajero${passengers > 1 ? "s" : ""}${approx ? " (aprox.)" : ""}`;
+  return `$${total} MXN (incl. $${SERVICE_FEE} servicio)${nightNote} · ${passengers} pasajero${passengers > 1 ? "s" : ""}${childrenNote}${approx ? " (aprox.)" : ""}`;
 }
 
 async function login() {
