@@ -237,6 +237,12 @@ try {
   // la columna ya existe
 }
 
+try {
+  db.exec("ALTER TABLE rides ADD COLUMN children INTEGER NOT NULL DEFAULT 0");
+} catch {
+  // la columna ya existe
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS riders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
