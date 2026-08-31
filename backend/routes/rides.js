@@ -15,6 +15,7 @@ router.post("/rides", (req, res) => {
     dest_lng,
     dest_label,
     passengers,
+    children,
     ride_type,
   } = req.body;
 
@@ -30,8 +31,8 @@ router.post("/rides", (req, res) => {
 
   const result = db
     .prepare(
-      `INSERT INTO rides (rider_name, rider_phone, rider_id, pickup_lat, pickup_lng, pickup_label, dest_lat, dest_lng, dest_label, passengers, ride_type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO rides (rider_name, rider_phone, rider_id, pickup_lat, pickup_lng, pickup_label, dest_lat, dest_lng, dest_label, passengers, children, ride_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       rider_name,
@@ -44,6 +45,7 @@ router.post("/rides", (req, res) => {
       dest_lng ?? null,
       dest_label || null,
       passengers || 1,
+      children || 0,
       ride_type === "taxi" ? "taxi" : "moto"
     );
 
