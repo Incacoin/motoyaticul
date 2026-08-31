@@ -756,7 +756,6 @@ function renderRideList() {
         ${r.dest_lat ? `<div class="meta">Destino: ${r.dest_label || "punto marcado en el mapa"} (${haversine(r.pickup_lat, r.pickup_lng, r.dest_lat, r.dest_lng).toFixed(1)} km desde la recogida)</div>` : ""}
         <div class="meta fare">${estimateFare(r)}</div>
         <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <a class="btn-sm" href="tel:${r.rider_phone}" style="flex:1;text-align:center;text-decoration:none;">📞 Llamar</a>
           <button class="btn-sm wa" style="flex:1;" onclick="openMessageOverlay(${r.id})">💬 Mensaje</button>
         </div>
         <button class="btn" onclick="acceptRide(${r.id})">Aceptar</button>
