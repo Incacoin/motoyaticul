@@ -883,7 +883,7 @@ function renderRideRows(rides) {
       <td>${r.driver_name || "—"}${disconnected}</td>
       <td>${r.pickup_label || "—"}</td>
       <td>${r.dest_label || "—"}</td>
-      <td>${r.passengers}${r.children ? ` (${r.children} niños)` : ""}</td>
+      <td>${r.passengers + (r.children || 0)}${r.children ? ` (${r.passengers} adultos + ${r.children} niños)` : ""}</td>
       <td><span class="dot ${r.status}"></span>${RIDE_STATUS_LABEL[r.status] || r.status}${rating}${cancelNote}</td>
       <td class="ago">${timeAgo(r.updated_at)}</td>
     </tr>`;
