@@ -15,6 +15,10 @@ const realtime = require("./realtime");
 const { startBackupSchedule } = require("./backup");
 
 const app = express();
+// Render (y cualquier proxy delante del server) reenvía la IP real del
+// cliente en X-Forwarded-For — sin esto, req.ip siempre sería la IP interna
+// del proxy y el límite de intentos de PIN no distinguiría a nadie.
+app.set("trust proxy", true);
 app.use(express.json({ limit: "5mb" }));
 
 app.use(express.static(path.join(__dirname, "..", "frontend")));
