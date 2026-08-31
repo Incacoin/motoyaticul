@@ -87,6 +87,13 @@
   .menu-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; cursor: pointer; text-decoration: none; color: var(--text); background: none; border: none; width: 100%; text-align: left; font-size: 15px; font-weight: 600; font-family: inherit; }
   .menu-row + .menu-row { border-top: 1px solid var(--border); }
   .menu-row.danger { color: var(--danger); }
+  .menu-card { padding: 4px; }
+  .menu-card > .menu-row, .menu-card > .section-body { border-top: 1px solid var(--border); }
+  .menu-card > .menu-row:first-child { border-top: none; }
+  .menu-row .menu-label { flex: 1; }
+  .menu-row .menu-chev { color: var(--text-faint); font-size: 15px; transition: transform 0.15s ease; }
+  .menu-row .menu-chev.open { transform: rotate(90deg); }
+  .section-body { padding: 2px 4px 14px; }
 </style>
 </head>
 <body>
@@ -175,27 +182,37 @@
       <div class="profile-note" id="ratingNote"></div>
     </div>
 
-    <div class="card profile-card">
-      <div class="card-title">Mis pagos</div>
-      <div id="accountRows"></div>
-      <div class="profile-note" id="accountNote"></div>
-    </div>
+    <div class="card menu-card">
+      <button class="menu-row" onclick="toggleSection('pagos')">
+        <span>💳</span><span class="menu-label">Mis pagos</span><span class="menu-chev" id="chev-pagos">›</span>
+      </button>
+      <div id="section-pagos" class="section-body" style="display:none;">
+        <div id="accountRows"></div>
+        <div class="profile-note" id="accountNote"></div>
+      </div>
 
-    <div class="card profile-card">
-      <div class="card-title">Mis datos</div>
-      <div id="dataRows"></div>
-      <div class="profile-note">Si algo de aquí está mal, avísale a tu líder o al administrador — estos datos los registró quien te dio de alta.</div>
-    </div>
+      <button class="menu-row" onclick="toggleSection('datos')">
+        <span>🪪</span><span class="menu-label">Mis datos</span><span class="menu-chev" id="chev-datos">›</span>
+      </button>
+      <div id="section-datos" class="section-body" style="display:none;">
+        <div id="dataRows"></div>
+        <div class="profile-note">Si algo de aquí está mal, avísale a tu líder o al administrador — estos datos los registró quien te dio de alta.</div>
+      </div>
 
-    <div class="card profile-card">
-      <div class="card-title">Mi PIN de acceso</div>
-      <div class="pin-box" id="profilePin">••••</div>
-      <div class="profile-note">Con este PIN entras a la app. No se lo compartas a nadie: quien lo tenga puede recibir viajes a tu nombre.</div>
-    </div>
+      <button class="menu-row" onclick="toggleSection('pin')">
+        <span>🔑</span><span class="menu-label">Mi PIN de acceso</span><span class="menu-chev" id="chev-pin">›</span>
+      </button>
+      <div id="section-pin" class="section-body" style="display:none;">
+        <div class="pin-box" id="profilePin">••••</div>
+        <div class="profile-note">Con este PIN entras a la app. No se lo compartas a nadie: quien lo tenga puede recibir viajes a tu nombre.</div>
+      </div>
 
-    <div class="card" style="padding:4px;">
-      <a class="menu-row" href="aviso-legal.html" target="_blank" rel="noopener">📄 Aviso legal</a>
-      <button class="menu-row danger" onclick="logout()">🚪 Cerrar sesión</button>
+      <a class="menu-row" href="aviso-legal.html" target="_blank" rel="noopener">
+        <span>📄</span><span class="menu-label">Aviso legal</span>
+      </a>
+      <button class="menu-row danger" onclick="logout()">
+        <span>🚪</span><span class="menu-label">Cerrar sesión</span>
+      </button>
     </div>
 
     <div class="credit footer-credit" style="text-align:center;">⚡ Tecnología de <strong>Lealtad Digital</strong></div>
@@ -1118,6 +1135,14 @@ async function openProfile() {
 
 function closeProfile() {
   document.getElementById("profileScreen").style.display = "none";
+}
+
+function toggleSection(name) {
+  const body = document.getElementById("section-" + name);
+  const chev = document.getElementById("chev-" + name);
+  const isOpen = body.style.display === "block";
+  body.style.display = isOpen ? "none" : "block";
+  chev.classList.toggle("open", !isOpen);
 }
 
 function renderProfile(p) {
