@@ -40,6 +40,13 @@
   #status { align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; }
   #status .big { font-size: 21px; font-weight: 700; }
   .etaText { color: var(--accent); font-size: 14.5px; font-weight: 600; }
+  .badge-card { padding: 18px 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; margin-bottom: 14px; }
+  .badge-card .medal { font-size: 36px; line-height: 1; }
+  .badge-card .tier-label { font-weight: 800; font-size: 16px; }
+  .badge-card .trip-count { color: var(--text-dim); font-size: 13.5px; }
+  .badge-card .progress-note { color: var(--accent); font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .load-more-btn { font-size: 14px; padding: 11px 16px; border-radius: var(--radius-sm); background: var(--bg-card); color: var(--accent); border: 1px solid var(--border); font-weight: 700; width: 100%; cursor: pointer; margin-top: 4px; }
+  .load-more-btn:hover { background: var(--bg-card-hover); }
   #driverCard { padding: 18px; width: 280px; }
   #driverCard .name { font-size: 18px; font-weight: 700; }
   #driverCard .meta { color: var(--text-dim); margin-top: 4px; font-size: 14px; }
@@ -90,7 +97,10 @@
 
 <div id="historyScreen" class="screen">
   <div class="brand" style="font-size:20px;">📋 Mis viajes</div>
-  <div id="historyList" style="padding:16px;overflow-y:auto;flex:1;width:100%;box-sizing:border-box;max-width:420px;margin:0 auto;"></div>
+  <div id="historyBody" style="padding:16px;overflow-y:auto;flex:1;width:100%;box-sizing:border-box;max-width:420px;margin:0 auto;">
+    <div id="historyBadge" style="display:none;"></div>
+    <div id="historyList"></div>
+  </div>
   <button class="btn btn-secondary" onclick="closeHistory()" style="max-width:420px;margin:0 auto 24px;width:calc(100% - 32px);">Volver</button>
 </div>
 
@@ -561,6 +571,9 @@ async function requestRide() {
   ride = await res.json();
   localStorage.setItem("motoya_active_ride", String(ride.id));
   showTripCountBadge(ride.riderTripCount);
+  if (ride.riderTripCount != null) {
+    localStorage.setItem("motoya_last_trip_count", String(ride.riderTripCount));
+  }
 
   stopAvailableDriversPolling();
   document.getElementById("mapScreen").classList.remove("active");
@@ -740,6 +753,12 @@ function riderTierLabel(count) {
   return tier ? tier.label : null;
 }
 
+function nextTierProgress(count) {
+  const ascending = [...RIDER_TIERS].sort((a, b) => a.min - b.min);
+  const next = ascending.find((t) => t.min > count);
+  return next ? { remaining: next.min - count, label: next.label } : null;
+}
+
 function showTripCountBadge(count) {
   const el = document.getElementById("tripCountBadge");
   if (count == null) { el.style.display = "none"; return; }
@@ -763,9 +782,65 @@ function saveRideToLocalHistory(rideId) {
   localStorage.setItem("motoya_ride_history", JSON.stringify(history));
 }
 
+function renderHistoryBadge() {
+  const el = document.getElementById("historyBadge");
+  const raw = localStorage.getItem("motoya_last_trip_count");
+  if (raw == null) { el.style.display = "none"; return; }
+  const count = Number(raw);
+  const tier = riderTierLabel(count);
+  const next = nextTierProgress(count);
+  const medal = tier ? tier.split(" ")[0] : "🛵";
+  const tierName = tier ? tier.slice(tier.indexOf(" ") + 1) : "Pasajero MotoYaTicul";
+  el.innerHTML = `
+    <div class="card badge-card">
+      <div class="medal">${medal}</div>
+      <div class="tier-label">${tierName}</div>
+      <div class="trip-count">Llevas ${count} viaje${count === 1 ? "" : "s"} con MotoYaTicul</div>
+      ${next ? `<div class="progress-note">${next.remaining} viaje${next.remaining === 1 ? "" : "s"} más para ${next.label}</div>` : ""}
+    </div>`;
+  el.style.display = "block";
+}
+
+let historyRidesCache = [];
+let historyExpanded = false;
+
+function historyCardHtml(r) {
+  const fecha = (r.updated_at || r.created_at || "").slice(0, 16).replace("T", " ");
+  const estadoLabel = { completado: "Completado", cancelado: "Cancelado" }[r.status] || r.status;
+  return `
+      <div class="card" style="margin-bottom:10px;padding:14px;">
+        <div style="font-weight:700;">${estadoLabel}</div>
+        <div class="meta" style="color:var(--text-dim);font-size:13.5px;">${fecha}</div>
+        ${r.pickup_label ? `<div class="meta" style="color:var(--text-dim);font-size:13.5px;">Desde: ${r.pickup_label}</div>` : ""}
+        ${r.dest_label ? `<div class="meta" style="color:var(--text-dim);font-size:13.5px;">Hasta: ${r.dest_label}</div>` : ""}
+      </div>`;
+}
+
+function renderHistoryList() {
+  const listEl = document.getElementById("historyList");
+  const rides = historyRidesCache;
+  if (rides.length === 0) {
+    listEl.innerHTML = `<div style="color:var(--text-dim);text-align:center;padding:24px 0;">Todavía no tienes viajes completados en este celular.</div>`;
+    return;
+  }
+  const visible = historyExpanded ? rides : rides.slice(0, 2);
+  const remaining = rides.length - visible.length;
+  const moreBtn = remaining > 0
+    ? `<button class="load-more-btn" onclick="expandHistory()">Ver ${remaining} viaje${remaining === 1 ? "" : "s"} más</button>`
+    : "";
+  listEl.innerHTML = visible.map(historyCardHtml).join("") + moreBtn;
+}
+
+function expandHistory() {
+  historyExpanded = true;
+  renderHistoryList();
+}
+
 async function openHistory() {
   document.getElementById("form").classList.remove("active");
   document.getElementById("historyScreen").classList.add("active");
+  historyExpanded = false;
+  renderHistoryBadge();
   const listEl = document.getElementById("historyList");
   let history = [];
   try {
@@ -778,23 +853,10 @@ async function openHistory() {
     return;
   }
   listEl.innerHTML = `<div style="color:var(--text-dim);text-align:center;padding:24px 0;">Cargando...</div>`;
-  const rides = await Promise.all(
+  historyRidesCache = (await Promise.all(
     history.map((id) => fetch(API + `/api/rides/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null))
-  );
-  listEl.innerHTML = rides
-    .filter(Boolean)
-    .map((r) => {
-      const fecha = (r.updated_at || r.created_at || "").slice(0, 16).replace("T", " ");
-      const estadoLabel = { completado: "Completado", cancelado: "Cancelado" }[r.status] || r.status;
-      return `
-      <div class="card" style="margin-bottom:10px;padding:14px;">
-        <div style="font-weight:700;">${estadoLabel}</div>
-        <div class="meta" style="color:var(--text-dim);font-size:13.5px;">${fecha}</div>
-        ${r.pickup_label ? `<div class="meta" style="color:var(--text-dim);font-size:13.5px;">Desde: ${r.pickup_label}</div>` : ""}
-        ${r.dest_label ? `<div class="meta" style="color:var(--text-dim);font-size:13.5px;">Hasta: ${r.dest_label}</div>` : ""}
-      </div>`;
-    })
-    .join("") || `<div style="color:var(--text-dim);text-align:center;padding:24px 0;">Todavía no tienes viajes completados en este celular.</div>`;
+  )).filter(Boolean);
+  renderHistoryList();
 }
 
 function closeHistory() {
