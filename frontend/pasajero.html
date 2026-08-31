@@ -107,7 +107,7 @@
       <button class="btn btn-secondary" onclick="resetPins()">Borrar pines</button>
     </div>
     <div class="row">
-      <span style="color:var(--text-dim);font-size:14px;">Pasajeros</span>
+      <span style="color:var(--text-dim);font-size:14px;">Adultos</span>
       <div class="stepper">
         <button class="btn-sm" onclick="changePassengers(-1)">−</button>
         <span id="passengerCount">1</span>
@@ -246,6 +246,9 @@ let driverPos = null;
 let routeLine = null;
 let routeRefreshInterval = null;
 let currentRideStatus = "buscando";
+// "passengers" son los adultos; "children" se suma a ellos (no es un
+// subconjunto) — el tope real es cuántas personas caben en el mototaxi.
+const MAX_OCCUPANTS = 4;
 let passengers = 1;
 let children = 0;
 let serviceType = "moto";
@@ -336,17 +339,13 @@ function haversine(lat1, lng1, lat2, lng2) {
 }
 
 function changePassengers(delta) {
-  passengers = Math.min(4, Math.max(1, passengers + delta));
+  passengers = Math.min(MAX_OCCUPANTS - children, Math.max(1, passengers + delta));
   document.getElementById("passengerCount").textContent = passengers;
-  if (children > passengers) {
-    children = passengers;
-    document.getElementById("childrenCount").textContent = children;
-  }
   updateFareEstimate();
 }
 
 function changeChildren(delta) {
-  children = Math.min(passengers, Math.max(0, children + delta));
+  children = Math.min(MAX_OCCUPANTS - passengers, Math.max(0, children + delta));
   document.getElementById("childrenCount").textContent = children;
   updateFareEstimate();
 }
@@ -370,12 +369,12 @@ function updateFareEstimate() {
     }
     pricePerPerson = night ? NIGHT_FARE : (tripKm > FARE_SHORT_KM ? FARE_NORMAL : FARE_SHORT);
   }
-  const adults = passengers - children;
+  const totalPeople = passengers + children;
   const childRate = night ? CHILD_FARE_NIGHT : CHILD_FARE_DAY;
-  const total = pricePerPerson * adults + childRate * children + SERVICE_FEE;
+  const total = pricePerPerson * passengers + childRate * children + SERVICE_FEE;
   const nightNote = night ? " · tarifa nocturna" : "";
-  const childrenNote = children > 0 ? ` (${adults} adulto${adults === 1 ? "" : "s"} + ${children} niño${children === 1 ? "" : "s"})` : "";
-  el.textContent = `Tarifa estimada: $${total} MXN (${passengers} pasajero${passengers > 1 ? "s" : ""}${childrenNote}, incluye $${SERVICE_FEE} de servicio)${nightNote}${approx ? " · aprox., marca destino para afinar" : ""}`;
+  const childrenNote = children > 0 ? ` (${passengers} adulto${passengers === 1 ? "" : "s"} + ${children} niño${children === 1 ? "" : "s"})` : "";
+  el.textContent = `Tarifa estimada: $${total} MXN (${totalPeople} pasajero${totalPeople > 1 ? "s" : ""}${childrenNote}, incluye $${SERVICE_FEE} de servicio)${nightNote}${approx ? " · aprox., marca destino para afinar" : ""}`;
 }
 
 function setServiceType(type) {
