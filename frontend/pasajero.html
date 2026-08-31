@@ -40,6 +40,21 @@
   #status { align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; }
   #status .big { font-size: 21px; font-weight: 700; }
   .etaText { color: var(--accent); font-size: 14.5px; font-weight: 600; }
+  .verified-badge { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--accent); }
+  .drivers-row { display: flex; align-items: center; gap: 10px; }
+  .avatars { display: flex; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--bg); background: var(--bg-card-hover); display: flex; align-items: center; justify-content: center; margin-left: -9px; overflow: hidden; }
+  .avatar:first-child { margin-left: 0; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .drivers-text { font-size: 13.5px; color: var(--text-dim); }
+  .drivers-text strong { color: var(--text); }
+  .search-card { width: 100%; box-sizing: border-box; padding: 16px 18px; text-align: left; }
+  .search-title { font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: space-between; }
+  .search-title .timer { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 800; }
+  .progress-track { height: 5px; background: var(--bg-card-hover); border-radius: 999px; margin-top: 12px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 8%; background: var(--accent); border-radius: 999px; animation: searchSweep 1.8s ease-in-out infinite; }
+  @keyframes searchSweep { 0% { width: 8%; margin-left: 0%; } 50% { width: 55%; margin-left: 20%; } 100% { width: 8%; margin-left: 92%; } }
+  #searchingBlock { width: 100%; flex-direction: column; gap: 14px; }
   .badge-card { padding: 18px 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; margin-bottom: 14px; }
   .badge-card .medal { font-size: 36px; line-height: 1; }
   .badge-card .tier-label { font-weight: 800; font-size: 16px; }
@@ -144,6 +159,23 @@
   <div id="etaText" class="etaText"></div>
   <div id="connWarning"></div>
   <div id="statusMap"></div>
+  <div id="searchingBlock" style="display:none;">
+    <div class="verified-badge">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"></path><path d="M9 12l2 2 4-4"></path></svg>
+      Todos los choferes están verificados
+    </div>
+    <div class="drivers-row" id="nearbyDriversRow" style="display:none;">
+      <div class="avatars" id="nearbyDriversAvatars"></div>
+      <div class="drivers-text" id="nearbyDriversText"></div>
+    </div>
+    <div class="card search-card">
+      <div class="search-title">
+        <span>Buscando chofer...</span>
+        <span class="timer" id="searchTimer">0:00</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill"></div></div>
+    </div>
+  </div>
   <div id="driverCard" class="card fade-in" style="display:none;"></div>
   <button class="btn btn-secondary chat-toggle-btn" id="chatToggleBtn" onclick="toggleChat()" style="display:none;">💬 Chat</button>
   <div id="chatBox" class="card fade-in">
@@ -476,6 +508,84 @@ function stopAvailableDriversPolling() {
   availableDriverMarkers.clear();
 }
 
+// --- Choferes cercanos en la pantalla "Buscando chofer" (statusMap) ---
+// Espejo de loadAvailableDrivers()/start/stopAvailableDriversPolling() de
+// arriba, pero apuntando a statusMap en vez de map — son mapas de Leaflet
+// distintos, no se puede reusar el mismo Map de marcadores entre los dos.
+let statusAvailableDriverMarkers = new Map();
+let statusAvailableDriversPollTimer = null;
+let searchTimerInterval = null;
+let searchStartedAt = null;
+
+async function loadStatusAvailableDrivers() {
+  if (!pickup) return;
+  const res = await fetch(API + `/api/drivers/available?type=${serviceType}&lat=${pickup.lat}&lng=${pickup.lng}`);
+  if (!res.ok) return;
+  const drivers = await res.json();
+  const seen = new Set();
+  const icon = serviceType === "taxi" ? taxiIcon() : motoIcon();
+  for (const d of drivers) {
+    seen.add(d.id);
+    const pos = [d.lat, d.lng];
+    if (statusAvailableDriverMarkers.has(d.id)) {
+      statusAvailableDriverMarkers.get(d.id).setLatLng(pos);
+    } else {
+      statusAvailableDriverMarkers.set(d.id, L.marker(pos, { icon }).addTo(statusMap));
+    }
+  }
+  for (const [id, marker] of statusAvailableDriverMarkers) {
+    if (!seen.has(id)) {
+      statusMap.removeLayer(marker);
+      statusAvailableDriverMarkers.delete(id);
+    }
+  }
+
+  const row = document.getElementById("nearbyDriversRow");
+  const count = drivers.length;
+  if (count === 0) {
+    row.style.display = "none";
+  } else {
+    row.style.display = "flex";
+    document.getElementById("nearbyDriversAvatars").innerHTML = drivers
+      .slice(0, 4)
+      .map((d) => (d.photo
+        ? `<div class="avatar"><img src="${d.photo}" /></div>`
+        : `<div class="avatar">${serviceType === "taxi" ? "🚕" : "🛵"}</div>`))
+      .join("");
+    document.getElementById("nearbyDriversText").innerHTML =
+      `<strong>${count} chofer${count === 1 ? "" : "es"}</strong> cerca de ti vio${count === 1 ? "" : "n"} tu solicitud`;
+  }
+}
+
+function startStatusAvailableDriversPolling() {
+  loadStatusAvailableDrivers();
+  clearInterval(statusAvailableDriversPollTimer);
+  statusAvailableDriversPollTimer = setInterval(loadStatusAvailableDrivers, 4000);
+
+  searchStartedAt = Date.now();
+  clearInterval(searchTimerInterval);
+  searchTimerInterval = setInterval(() => {
+    const secs = Math.floor((Date.now() - searchStartedAt) / 1000);
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    const el = document.getElementById("searchTimer");
+    if (el) el.textContent = `${m}:${String(s).padStart(2, "0")}`;
+  }, 1000);
+
+  document.getElementById("searchingBlock").style.display = "flex";
+}
+
+function stopStatusAvailableDriversPolling() {
+  clearInterval(statusAvailableDriversPollTimer);
+  clearInterval(searchTimerInterval);
+  if (statusMap) {
+    for (const marker of statusAvailableDriverMarkers.values()) statusMap.removeLayer(marker);
+  }
+  statusAvailableDriverMarkers.clear();
+  const block = document.getElementById("searchingBlock");
+  if (block) block.style.display = "none";
+}
+
 function goToMap() {
   const name = document.getElementById("nameInput").value.trim();
   const phone = document.getElementById("phoneInput").value.trim();
@@ -583,6 +693,7 @@ async function requestRide() {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(statusMap);
   L.marker([pickup.lat, pickup.lng], { icon: numberedIcon(1, "#f6a623") }).addTo(statusMap);
   if (dest) L.marker([dest.lat, dest.lng], { icon: numberedIcon(2, "#3498db") }).addTo(statusMap);
+  startStatusAvailableDriversPolling();
 
   connectWs();
   requestWakeLock();
@@ -648,6 +759,7 @@ function connectWs() {
 const RANK_EMOJI = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 async function onDriverAssigned(driver) {
+  stopStatusAvailableDriversPolling();
   currentRideStatus = "aceptado";
   document.getElementById("statusText").textContent = "¡Chofer en camino!";
   const cancelBtnEl = document.getElementById("cancelBtn");
@@ -865,6 +977,7 @@ function closeHistory() {
 }
 
 function onCompleted() {
+  stopStatusAvailableDriversPolling();
   currentRideStatus = "completado";
   localStorage.removeItem("motoya_active_ride");
   if (ride) saveRideToLocalHistory(ride.id);
@@ -911,6 +1024,7 @@ async function rateRide(rating) {
 }
 
 function onNoDriversAvailable() {
+  stopStatusAvailableDriversPolling();
   currentRideStatus = "cancelado";
   localStorage.removeItem("motoya_active_ride");
   document.getElementById("statusText").textContent = "😕 No hay choferes disponibles ahorita. Intenta de nuevo en unos minutos.";
@@ -924,6 +1038,7 @@ function onNoDriversAvailable() {
 }
 
 function onCancelledByDriver() {
+  stopStatusAvailableDriversPolling();
   currentRideStatus = "cancelado";
   localStorage.removeItem("motoya_active_ride");
   document.getElementById("statusText").textContent = "El viaje fue cancelado.";
@@ -955,6 +1070,7 @@ function reportViaWhatsapp() {
 
 async function cancelRide() {
   if (!ride) return;
+  stopStatusAvailableDriversPolling();
   const wasActive = ["aceptado", "llegue", "en_curso"].includes(currentRideStatus);
   currentRideStatus = "cancelado";
   localStorage.removeItem("motoya_active_ride");
@@ -1009,6 +1125,7 @@ async function restoreActiveRide() {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(statusMap);
   L.marker([pickup.lat, pickup.lng], { icon: numberedIcon(1, "#f6a623") }).addTo(statusMap);
   if (dest) L.marker([dest.lat, dest.lng], { icon: numberedIcon(2, "#3498db") }).addTo(statusMap);
+  startStatusAvailableDriversPolling();
 
   if (fetched.driver) {
     onDriverAssigned(fetched.driver);
