@@ -163,7 +163,7 @@
   <h1>🔗 Link / QR de registro</h1>
   <p class="section-hint">Elige a quién va dirigido este QR.</p>
   <div class="tipo-tabs" id="qrModeTabs">
-    <button class="active" onclick="setQrMode('informal')">Informal (general)</button>
+    <button class="active" onclick="setQrMode('informal')">Independiente (general)</button>
     <button onclick="setQrMode('generico')">Formal genérico</button>
     <button onclick="setQrMode('gremio')">Gremio específico</button>
   </div>
@@ -736,7 +736,7 @@ function setTipoFilter(tipo) {
 
 function tipoBadge(tipo) {
   const t = tipo === "formal" ? "formal" : "informal";
-  const label = t === "formal" ? "Formal" : "Informal";
+  const label = t === "formal" ? "Formal" : "Independiente";
   return `<span class="badge-tipo ${t}">${label}</span>`;
 }
 
