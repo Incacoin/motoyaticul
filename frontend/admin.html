@@ -318,6 +318,7 @@ let driversCache = [];
 let applicationsCache = [];
 let pendingDriverPhoto = null;
 let pendingDriverPhotoPlaca = null;
+let pendingDriverSignature = null;
 let pendingDriverTipo = "formal";
 let lastRegistered = null;
 let editingId = null;
@@ -500,6 +501,7 @@ function renderApplications(apps) {
         <div class="info">
           ${a.photo ? `<img class="thumb" src="${a.photo}" onclick="window.open('${a.photo}', '_blank')" />` : ""}
           ${a.photo_placa ? `<img class="thumb" src="${a.photo_placa}" onclick="window.open('${a.photo_placa}', '_blank')" title="Foto de placa" />` : ""}
+          ${a.signature ? `<img class="thumb" style="background:#fff" src="${a.signature}" onclick="window.open('${a.signature}', '_blank')" title="Firma" />` : ""}
           <div class="who">
             <span class="name">${a.name}</span>
             <span class="meta">${a.phone} · ${timeAgo(a.created_at)} · ${vehicleTypeBadge(a.vehicle_type)} ${tipoBadge(a.tipo)}</span>
@@ -524,6 +526,7 @@ function useApplication(id) {
   pendingDriverTipo = app.tipo === "formal" ? "formal" : "informal";
   pendingDriverPhoto = app.photo || null;
   pendingDriverPhotoPlaca = app.photo_placa || null;
+  pendingDriverSignature = app.signature || null;
   renderPendingPhotoPreview();
   document.getElementById("driverName").scrollIntoView({ behavior: "smooth", block: "center" });
   dismissApplication(id, true);
@@ -532,7 +535,7 @@ function useApplication(id) {
 function renderPendingPhotoPreview() {
   const el = document.getElementById("pendingPhotoPreview");
   el.innerHTML = pendingDriverPhoto
-    ? `<img class="thumb" src="${pendingDriverPhoto}" /> ${pendingDriverPhotoPlaca ? `<img class="thumb" src="${pendingDriverPhotoPlaca}" title="Foto de placa" />` : ""} <span class="ago">Se guardará con este chofer</span>`
+    ? `<img class="thumb" src="${pendingDriverPhoto}" /> ${pendingDriverPhotoPlaca ? `<img class="thumb" src="${pendingDriverPhotoPlaca}" title="Foto de placa" />` : ""} ${pendingDriverSignature ? `<img class="thumb" style="background:#fff" src="${pendingDriverSignature}" title="Firma" />` : ""} <span class="ago">Se guardará con este chofer</span>`
     : "";
 }
 
@@ -634,7 +637,7 @@ async function registerDriver() {
   const res = await fetch(API + "/api/admin/drivers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ adminPin, name, phone, vehicle, grupo, tipo, vehicleType, acceptedLegal: true, photo: pendingDriverPhoto, photoPlaca: pendingDriverPhotoPlaca }),
+    body: JSON.stringify({ adminPin, name, phone, vehicle, grupo, tipo, vehicleType, acceptedLegal: true, photo: pendingDriverPhoto, photoPlaca: pendingDriverPhotoPlaca, signature: pendingDriverSignature }),
   });
   if (!res.ok) {
     document.getElementById("err2").textContent = (await res.json()).error;
@@ -656,6 +659,7 @@ async function registerDriver() {
   document.getElementById("driverPhotoInput").value = "";
   pendingDriverPhoto = null;
   pendingDriverPhotoPlaca = null;
+  pendingDriverSignature = null;
   pendingDriverTipo = "formal";
   renderPendingPhotoPreview();
 
@@ -808,8 +812,11 @@ function renderDriverRows() {
     const placaThumb = d.photo_placa
       ? `<img class="thumb" src="${d.photo_placa}" onclick="window.open('${d.photo_placa}', '_blank')" title="Foto de placa" />`
       : "";
+    const sigThumb = d.signature
+      ? `<img class="thumb" style="background:#fff" src="${d.signature}" onclick="window.open('${d.signature}', '_blank')" title="Firma del contrato" />`
+      : "";
     const nameCell = d.photo
-      ? `<div class="info"><img class="thumb" src="${d.photo}" onclick="window.open('${d.photo}', '_blank')" />${placaThumb}<span>${d.name}</span></div>`
+      ? `<div class="info"><img class="thumb" src="${d.photo}" onclick="window.open('${d.photo}', '_blank')" />${placaThumb}${sigThumb}<span>${d.name}</span></div>`
       : d.name;
     return `
     <tr>
