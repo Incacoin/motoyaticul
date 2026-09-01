@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contrato de Prestación de Servicios — MotoYaTicul</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%B5%3C/text%3E%3C/svg%3E" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,500&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --ink:#1b2430;
+    --ink-soft:#535d6c;
+    --ink-faint:#8791a0;
+    --paper:#f7f6f2;
+    --surface:#ffffff;
+    --line:rgba(27,36,48,0.13);
+    --accent:#b5691a;
+    --accent-soft:#f1e2ce;
+    --accent-ink:#7a4610;
+    --danger:#9c3b2e;
+    --danger-soft:#f5e3df;
+    --font-display:'Newsreader', Georgia, 'Times New Roman', serif;
+    --font-body:'Public Sans', -apple-system, Segoe UI, sans-serif;
+    --font-mono:'IBM Plex Mono', 'Courier New', monospace;
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink:#e9e6de;
+      --ink-soft:#b3aea1;
+      --ink-faint:#7d7a70;
+      --paper:#15181c;
+      --surface:#1c2025;
+      --line:rgba(233,230,222,0.13);
+      --accent:#e0a751;
+      --accent-soft:#332a1c;
+      --accent-ink:#f0c383;
+      --danger:#d98a7a;
+      --danger-soft:#332420;
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-body);
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .topbar{
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+    position:sticky;
+    top:0;
+    z-index:10;
+    backdrop-filter:blur(6px);
+  }
+  .topbar-inner{
+    max-width:760px;
+    margin:0 auto;
+    padding:14px 24px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+  }
+  .wordmark{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:1.05rem;
+    letter-spacing:0.01em;
+  }
+  .wordmark span{color:var(--accent);}
+  .doc-meta{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+
+  main{
+    max-width:760px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    margin:0 0 14px;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-size:2.35rem;
+    font-weight:600;
+    line-height:1.15;
+    margin:0 0 10px;
+    text-wrap:balance;
+  }
+  .subtitle{
+    color:var(--ink-soft);
+    font-size:1.02rem;
+    max-width:56ch;
+    margin:0 0 40px;
+  }
+
+  .summary-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:3px solid var(--accent);
+    border-radius:6px;
+    padding:24px 26px;
+    margin:0 0 48px;
+  }
+  .summary-card h2{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--accent-ink);
+    margin:0 0 14px;
+    font-weight:500;
+  }
+  .summary-card ul{
+    margin:0;
+    padding:0 0 0 1.1em;
+  }
+  .summary-card li{
+    margin:0 0 10px;
+    color:var(--ink);
+  }
+  .summary-card li:last-child{margin-bottom:0;}
+  .summary-card strong{font-weight:600;}
+
+  nav.toc{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 0;
+    margin:0 0 52px;
+    padding:18px 0;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  nav.toc a{
+    font-family:var(--font-mono);
+    font-size:0.78rem;
+    color:var(--ink-soft);
+    text-decoration:none;
+    padding:4px 14px 4px 0;
+    border-right:1px solid var(--line);
+  }
+  nav.toc a:last-child{border-right:none;}
+  nav.toc a:hover, nav.toc a:focus-visible{color:var(--accent-ink);}
+
+  section.clause{
+    display:grid;
+    grid-template-columns:56px 1fr;
+    gap:0 20px;
+    padding:34px 0;
+    border-top:1px solid var(--line);
+    scroll-margin-top:80px;
+  }
+  section.clause:first-of-type{border-top:none;}
+  .clause-num{
+    font-family:var(--font-mono);
+    font-size:1.5rem;
+    color:var(--ink-faint);
+    line-height:1.2;
+    padding-top:2px;
+  }
+  .clause h3{
+    font-family:var(--font-display);
+    font-size:1.28rem;
+    font-weight:600;
+    margin:0 0 12px;
+    line-height:1.3;
+  }
+  .clause p{
+    margin:0 0 14px;
+    color:var(--ink);
+    max-width:64ch;
+  }
+  .clause p:last-child{margin-bottom:0;}
+  .clause ul{
+    margin:0 0 14px;
+    padding-left:1.2em;
+    max-width:62ch;
+  }
+  .clause li{margin-bottom:8px;}
+  .clause li:last-child{margin-bottom:0;}
+
+  .callout-danger{
+    background:var(--danger-soft);
+    border:1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+    border-radius:6px;
+    padding:16px 18px;
+    margin-top:16px;
+    font-size:0.95rem;
+    color:var(--ink);
+  }
+  .callout-danger strong{color:var(--danger);}
+
+  footer{
+    max-width:760px;
+    margin:0 auto;
+    padding:0 24px 64px;
+    color:var(--ink-faint);
+    font-size:0.82rem;
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  footer a{color:var(--ink-faint);}
+
+  @media (max-width:560px){
+    section.clause{grid-template-columns:34px 1fr; gap:0 14px;}
+    .clause-num{font-size:1.1rem;}
+    h1{font-size:1.85rem;}
+  }
+
+  @media print{
+    .topbar, nav.toc{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="wordmark">Moto<span>Ya</span>Ticul</div>
+    <div class="doc-meta">Vigente desde 1 sep 2026</div>
+  </div>
+</div>
+
+<main>
+  <p class="eyebrow">Contrato de prestación de servicios</p>
+  <h1>Contrato de Prestación de Servicios</h1>
+  <p class="subtitle">Este contrato regula la relación entre MotoYaTicul y cada chofer que se registra en la plataforma como prestador de servicios independiente. Se acepta mediante la firma digital capturada al momento del registro en la app.</p>
+
+  <div class="summary-card">
+    <h2>Resumen en lenguaje simple</h2>
+    <ul>
+      <li><strong>MotoYaTicul te conecta</strong> con pasajeros a cambio de una cuota de uso de la plataforma — no te contrata ni te paga sueldo.</li>
+      <li><strong>Tú eres un prestador de servicios independiente</strong>, no un empleado. Tú decides tus horarios y cómo trabajas.</li>
+      <li><strong>Pagas una cuota</strong> por viaje y una cuota mensual, según las tarifas vigentes publicadas en la app.</li>
+      <li><strong>Cualquiera de las dos partes</strong> puede terminar esta relación en cualquier momento, sin necesidad de dar explicación.</li>
+      <li>Este contrato complementa, no reemplaza, el <a href="aviso-legal.html">Aviso Legal de MotoYaTicul</a> — ambos aplican juntos.</li>
+    </ul>
+  </div>
+
+  <nav class="toc">
+    <a href="#objeto">1. Objeto</a>
+    <a href="#naturaleza">2. Naturaleza</a>
+    <a href="#obligaciones">3. Obligaciones</a>
+    <a href="#rol-operador">4. Rol del Operador</a>
+    <a href="#contraprestacion">5. Contraprestación</a>
+    <a href="#vigencia">6. Vigencia</a>
+    <a href="#aceptacion">7. Aceptación</a>
+    <a href="#jurisdiccion">8. Jurisdicción</a>
+  </nav>
+
+  <section class="clause" id="objeto">
+    <div class="clause-num">01</div>
+    <div>
+      <h3>Objeto</h3>
+      <p>MotoYaTicul (en adelante "el Operador") pone a disposición del chofer registrado (en adelante "el Prestador") una plataforma tecnológica ("la App") que lo conecta con pasajeros que solicitan servicio de transporte en mototaxi o taxi dentro de Ticul y sus alrededores. El Prestador utiliza la App para ofrecer dicho servicio por cuenta propia.</p>
+    </div>
+  </section>
+
+  <section class="clause" id="naturaleza">
+    <div class="clause-num">02</div>
+    <div>
+      <h3>Naturaleza de la relación</h3>
+      <p>El Prestador presta sus servicios de forma independiente, bajo su propio riesgo y responsabilidad. No existe relación laboral, de subordinación, de sociedad ni de representación entre el Operador y el Prestador. El Prestador determina libremente sus horarios, su disponibilidad y la forma en que presta el servicio.</p>
+      <p>Esta cláusula tiene el mismo alcance que la sección 2 del <a href="aviso-legal.html">Aviso Legal de MotoYaTicul</a>, el cual forma parte integrante de este contrato.</p>
+    </div>
+  </section>
+
+  <section class="clause" id="obligaciones">
+    <div class="clause-num">03</div>
+    <div>
+      <h3>Obligaciones del Prestador</h3>
+      <p>El Prestador se obliga a:</p>
+      <ul>
+        <li>Contar con licencia de conducir vigente y documentación de su vehículo en regla ante las autoridades correspondientes.</li>
+        <li>Conducir de forma responsable y respetar el reglamento de tránsito vigente en Ticul y en el estado de Yucatán.</li>
+        <li>Cubrir puntualmente las cuotas de uso de la plataforma señaladas en la cláusula 5.</li>
+        <li>Tratar a los pasajeros con respeto y hacer un uso adecuado de la App.</li>
+        <li>Si pertenece a un sitio o gremio de mototaxis, mantener su membresía al corriente conforme a las reglas internas de dicho sitio — asunto ajeno al Operador.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="clause" id="rol-operador">
+    <div class="clause-num">04</div>
+    <div>
+      <h3>Rol del Operador</h3>
+      <p>El Operador se limita a poner en contacto a pasajeros y choferes a través de la App, y a dar mantenimiento y soporte razonable a la plataforma. El Operador no garantiza un volumen mínimo de viajes ni ingresos para el Prestador.</p>
+    </div>
+  </section>
+
+  <section class="clause" id="contraprestacion">
+    <div class="clause-num">05</div>
+    <div>
+      <h3>Contraprestación económica</h3>
+      <p>El Prestador cubrirá al Operador las cuotas de uso de la plataforma vigentes al momento, publicadas dentro de la App. A la fecha de este contrato, dichas cuotas son de $2 MXN por viaje completado y $100 MXN mensuales.</p>
+      <div class="callout-danger">
+        <strong>Estas tarifas pueden actualizarse</strong> periódicamente. El Operador dará aviso dentro de la App con anticipación razonable antes de que un cambio entre en vigor.
+      </div>
+    </div>
+  </section>
+
+  <section class="clause" id="vigencia">
+    <div class="clause-num">06</div>
+    <div>
+      <h3>Vigencia y terminación</h3>
+      <p>Este contrato tiene vigencia indefinida a partir de la fecha de firma. Cualquiera de las partes puede darlo por terminado en cualquier momento, sin necesidad de causa, notificando a la otra por WhatsApp o dentro de la App.</p>
+      <p>El Operador podrá suspender o cancelar de inmediato el acceso del Prestador ante incumplimiento de este contrato, del Aviso Legal, falta de pago de cuotas, o quejas fundadas de mal trato, fraude o conducta insegura.</p>
+    </div>
+  </section>
+
+  <section class="clause" id="aceptacion">
+    <div class="clause-num">07</div>
+    <div>
+      <h3>Aceptación</h3>
+      <p>El Prestador declara haber leído y aceptado este contrato y el Aviso Legal de MotoYaTicul, mediante su firma digital capturada al momento de su registro en la App, junto con su nombre, teléfono y la fecha de registro que quedan almacenados en el sistema.</p>
+    </div>
+  </section>
+
+  <section class="clause" id="jurisdiccion">
+    <div class="clause-num">08</div>
+    <div>
+      <h3>Jurisdicción</h3>
+      <p>Este contrato se rige por las leyes aplicables en el municipio de Ticul, estado de Yucatán, México.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>MotoYaTicul — Ticul, Yucatán, México</span>
+  <span>Tecnología Lealtad Digital</span>
+</footer>
+
+</body>
+</html>
