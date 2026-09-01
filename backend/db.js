@@ -243,6 +243,18 @@ try {
   // la columna ya existe
 }
 
+try {
+  db.exec("ALTER TABLE driver_applications ADD COLUMN signature TEXT");
+} catch {
+  // la columna ya existe
+}
+
+try {
+  db.exec("ALTER TABLE drivers ADD COLUMN signature TEXT");
+} catch {
+  // la columna ya existe
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS riders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
