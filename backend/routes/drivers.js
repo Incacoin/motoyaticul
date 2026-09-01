@@ -205,29 +205,36 @@ router.post("/drivers/photo", (req, res) => {
 });
 
 router.post("/chofer-solicitudes", (req, res) => {
-  const { name, phone, photo, photoPlaca, acceptedLegal, vehicleType, grupo, viaLiderLink, formalIntent } = req.body;
+  const { name, phone, photo, photoPlaca, acceptedLegal, signature, vehicleType, grupo, viaLiderLink, formalIntent } = req.body;
   if (!name || !phone || !photo) {
     return res.status(400).json({ error: "Falta nombre, teléfono o foto" });
   }
   if (!acceptedLegal) {
     return res.status(400).json({ error: "Debes aceptar el aviso legal para continuar" });
   }
+  // La firma en pantalla es la evidencia de que el chofer aceptó el Contrato
+  // de Prestación de Servicios, no solo el aviso legal (checkbox) — el
+  // contador la pidió como respaldo adicional, distinto del aviso legal.
+  if (typeof signature !== "string" || !/^data:image\/png;base64,/.test(signature)) {
+    return res.status(400).json({ error: "Falta tu firma" });
+  }
 
   // El link de un líder (?grupo=Nombre) trae el gremio ya fijo — el chofer no
-  // lo escribe. El link genérico de formales (?formal=1) sí deja que el
-  // chofer escriba a qué gremio dice pertenecer, pero como nadie lo avaló
-  // todavía se le sigue pidiendo la foto de placa, igual que a un informal.
+  // lo escribe, y no requiere placa (el líder ya lo avala). El link genérico
+  // de formales (?formal=1) sí deja que el chofer escriba a qué gremio dice
+  // pertenecer, y como nadie lo avaló, ahí sí se exige la foto de placa.
+  // Los informales (sin gremio) no la requieren: muchos no tienen placa.
   const grupoLimpio = typeof grupo === "string" ? grupo.trim().slice(0, 60) : "";
   const tipo = formalIntent ? "formal" : "informal";
-  const requierePlaca = !viaLiderLink;
+  const requierePlaca = formalIntent && !viaLiderLink;
 
   if (requierePlaca && !photoPlaca) {
     return res.status(400).json({ error: "Falta la foto de tu moto con la placa" });
   }
 
   db.prepare(
-    "INSERT INTO driver_applications (name, phone, photo, photo_placa, accepted_legal_at, accepted_legal_version, vehicle_type, grupo, tipo) VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)"
-  ).run(name, phone, photo, photoPlaca || null, AVISO_LEGAL_VERSION, vehicleType === "taxi" ? "taxi" : "moto", grupoLimpio || null, tipo);
+    "INSERT INTO driver_applications (name, phone, photo, photo_placa, accepted_legal_at, accepted_legal_version, vehicle_type, grupo, tipo, signature) VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?)"
+  ).run(name, phone, photo, photoPlaca || null, AVISO_LEGAL_VERSION, vehicleType === "taxi" ? "taxi" : "moto", grupoLimpio || null, tipo, signature);
   res.status(201).json({ ok: true });
 });
 
