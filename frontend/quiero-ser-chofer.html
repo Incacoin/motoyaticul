@@ -17,11 +17,16 @@
   .phoneRow .prefix { padding: 13px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 16px; }
   .phoneRow input { flex: 1; }
   .fieldHint { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; margin: 0 0 8px; }
+  .fieldHint a { color: var(--accent); }
   #photoPreview, #photoPlacaPreview { display: none; width: 100%; max-height: 220px; object-fit: cover; border-radius: var(--radius-sm); margin-top: 10px; border: 1px solid var(--border); }
   #err { color: var(--danger); min-height: 18px; font-size: 13.5px; margin-top: 4px; }
   .legalCheck { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; cursor: pointer; }
   .legalCheck input { margin-top: 3px; flex-shrink: 0; }
   .legalCheck a { color: var(--accent); }
+  #signaturePad { width: 100%; height: auto; display: block; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); touch-action: none; }
+  .sigActions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .sigActions span { font-size: 12px; color: var(--text-dim); }
+  .btn-clear-sign { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12.5px; cursor: pointer; }
   #okScreen { display: none; padding: 26px 20px; text-align: center; }
   #okScreen .big { font-size: 38px; }
   #okScreen h2 { color: var(--accent); font-size: 19px; margin: 10px 0 6px; }
@@ -71,8 +76,8 @@
       <img id="photoPreview" />
     </div>
     <div class="field" id="placaField">
-      <label>Foto de tu moto y placa</label>
-      <p class="fieldHint">Tómala de frente, con la placa bien visible y legible.</p>
+      <label id="placaLabel">Foto de tu moto y placa</label>
+      <p class="fieldHint" id="placaHint">Tómala de frente, con la placa bien visible y legible.</p>
       <input type="file" id="photoPlaca" accept="image/*" capture="environment" onchange="handlePhotoPlaca(event)" />
       <img id="photoPlacaPreview" />
     </div>
@@ -81,6 +86,15 @@
         <input type="checkbox" id="acceptLegal" />
         He leído y acepto el <a href="aviso-legal.html" target="_blank" rel="noopener">Aviso Legal de MotoYaTicul</a>. Entiendo que opero como conductor independiente, bajo mi propia responsabilidad.
       </label>
+    </div>
+    <div class="field">
+      <label>Firma de aceptación</label>
+      <p class="fieldHint">Firma aquí con el dedo para aceptar el <a href="contrato-prestacion-servicios.html" target="_blank" rel="noopener">Contrato de Prestación de Servicios</a> de MotoYaTicul.</p>
+      <canvas id="signaturePad" width="600" height="200"></canvas>
+      <div class="sigActions">
+        <span id="sigStatus">Sin firmar</span>
+        <button type="button" class="btn-clear-sign" onclick="clearSignature()">Borrar firma</button>
+      </div>
     </div>
     <button class="btn" onclick="submitApplication()">Quiero ser chofer</button>
     <div id="err"></div>
@@ -110,6 +124,9 @@ if (viaLiderLink) {
 } else if (esFormalGenerico) {
   document.getElementById("formalGenericoBanner").style.display = "block";
   document.getElementById("grupoInputField").style.display = "flex";
+} else {
+  document.getElementById("placaLabel").textContent = "Foto de tu unidad con placa (si tiene)";
+  document.getElementById("placaHint").textContent = "Si tu unidad no tiene placa, no hay problema — puedes omitir este paso.";
 }
 
 function resizeToDataUrl(file, onDone, onError) {
@@ -172,6 +189,45 @@ function handlePhotoPlaca(event) {
   );
 }
 
+const sigCanvas = document.getElementById("signaturePad");
+const sigCtx = sigCanvas.getContext("2d");
+sigCtx.lineWidth = 3;
+sigCtx.lineCap = "round";
+sigCtx.strokeStyle = "#1b2430";
+let hasSignature = false;
+let signing = false;
+
+function sigPos(e) {
+  const rect = sigCanvas.getBoundingClientRect();
+  const scaleX = sigCanvas.width / rect.width;
+  const scaleY = sigCanvas.height / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+sigCanvas.addEventListener("pointerdown", (e) => {
+  signing = true;
+  hasSignature = true;
+  document.getElementById("sigStatus").textContent = "Firmado";
+  const p = sigPos(e);
+  sigCtx.beginPath();
+  sigCtx.moveTo(p.x, p.y);
+  sigCanvas.setPointerCapture(e.pointerId);
+});
+sigCanvas.addEventListener("pointermove", (e) => {
+  if (!signing) return;
+  const p = sigPos(e);
+  sigCtx.lineTo(p.x, p.y);
+  sigCtx.stroke();
+});
+sigCanvas.addEventListener("pointerup", () => { signing = false; });
+sigCanvas.addEventListener("pointerleave", () => { signing = false; });
+
+function clearSignature() {
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  hasSignature = false;
+  document.getElementById("sigStatus").textContent = "Sin firmar";
+}
+
 async function submitApplication() {
   const name = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
@@ -190,12 +246,16 @@ async function submitApplication() {
     err.textContent = "Tómate una foto contigo y tu moto";
     return;
   }
-  if (!viaLiderLink && !photoPlacaDataUrl) {
+  if (esFormalGenerico && !photoPlacaDataUrl) {
     err.textContent = "Sube una foto de tu moto con la placa visible";
     return;
   }
   if (!document.getElementById("acceptLegal").checked) {
     err.textContent = "Debes aceptar el aviso legal para continuar";
+    return;
+  }
+  if (!hasSignature) {
+    err.textContent = "Falta tu firma";
     return;
   }
 
@@ -208,7 +268,8 @@ async function submitApplication() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name, phone, photo: photoDataUrl, photoPlaca: photoPlacaDataUrl, acceptedLegal: true, vehicleType,
+      name, phone, photo: photoDataUrl, photoPlaca: photoPlacaDataUrl, acceptedLegal: true,
+      signature: sigCanvas.toDataURL("image/png"), vehicleType,
       grupo, viaLiderLink, formalIntent: viaLiderLink || esFormalGenerico,
     }),
   });
